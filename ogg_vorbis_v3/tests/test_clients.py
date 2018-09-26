@@ -9,6 +9,9 @@ import subprocess
 
 PATH_ORDINARY_TEST_1 = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                     'ordinary_test_1.ogg')
+CS_CLIENT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                              os.pardir,
+                              'ogg_vorbis_cs.py')
 
 
 class ConsoleClientTests(unittest.TestCase):
@@ -109,12 +112,24 @@ AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\
 AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA[...]\
 '''
 
-    def test_client_load_1(self):  # more tests like that
-        cs_client_path = os.path.join(
-            os.path.dirname(os.path.abspath(__file__)),
-            os.pardir,
-            'ogg_vorbis_cs.py')
+    def test_console_loading_without_args(self):
         completed_process = \
-            subprocess.run(['python', cs_client_path,
-                            '--headers=ident,setup', PATH_ORDINARY_TEST_1],
-                           capture_output=True)
+            subprocess.run([sys.executable,
+                            CS_CLIENT_PATH],
+                           stdout=subprocess.PIPE)
+
+    def test_console_print_version(self):
+        completed_process = \
+            subprocess.run([sys.executable,
+                            CS_CLIENT_PATH,
+                            '--version'],
+                           stdout=subprocess.PIPE)
+
+    def test_console_simple_loading_with_standart_headers(self):
+        # more tests like that
+        completed_process = \
+            subprocess.run([sys.executable,
+                            CS_CLIENT_PATH,
+                            '--headers=ident,setup,comment',
+                            PATH_ORDINARY_TEST_1],
+                           stdout=subprocess.PIPE)

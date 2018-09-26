@@ -140,11 +140,14 @@ zlib/jpeg method or ...'''
                 index_divisor = 1
                 value_vector = []
                 for i in range(codebook_dimensions):
-                    multiplicand_offset = (lookup_offset // index_divisor) %\
-                                          codebook_lookup_values
+                    multiplicand_offset = \
+                        (lookup_offset // index_divisor) \
+                        % codebook_lookup_values
                     value_vector +=\
-                        [codebook_multiplicands[multiplicand_offset] *
-                         codebook_delta_value + codebook_minimum_value + last]
+                        [codebook_multiplicands[multiplicand_offset]
+                         * codebook_delta_value
+                         + codebook_minimum_value
+                         + last]
                     if codebook_sequence_p:
                         last = value_vector[i]
                     index_divisor *= codebook_lookup_values
@@ -157,8 +160,10 @@ zlib/jpeg method or ...'''
                 value_vector = []
                 for i in range(codebook_dimensions):
                     value_vector +=\
-                        [codebook_multiplicands[multiplicand_offset] *
-                         codebook_delta_value + codebook_minimum_value + last]
+                        [codebook_multiplicands[multiplicand_offset]
+                         * codebook_delta_value
+                         + codebook_minimum_value
+                         + last]
                     if codebook_sequence_p:
                         last = value_vector[i]
                     multiplicand_offset += 1
@@ -170,12 +175,12 @@ zlib/jpeg method or ...'''
         '''Method reads full codebook from packet data'''
         self._check_codebook_sync_pattern()
 
-        this.codebook_dimensions = int.from_bytes(self._read_byte() +
-                                                  self._read_byte(),
+        this.codebook_dimensions = int.from_bytes(self._read_byte()
+                                                  + self._read_byte(),
                                                   byteorder='little')
-        this.codebook_entries = int.from_bytes(self._read_byte() +
-                                               self._read_byte() +
-                                               self._read_byte(),
+        this.codebook_entries = int.from_bytes(self._read_byte()
+                                               + self._read_byte()
+                                               + self._read_byte(),
                                                byteorder='little')
         if this.codebook_entries == 1:
             print('Single codebook entry')
@@ -199,12 +204,12 @@ zlib/jpeg method or ...'''
             this.codebook_sequence_p = bool(self._read_bit())
 
             if this.codebook_lookup_type == 1:
-                this.codebook_lookup_values =\
-                    lookup1_values(this.codebook_entries,
-                                   this.codebook_dimensions)
+                this.codebook_lookup_values = \
+                    lookup1_values(
+                        this.codebook_entries, this.codebook_dimensions)
             else:
-                this.codebook_lookup_values = this.codebook_entries *\
-                                         this.codebook_dimensions
+                this.codebook_lookup_values = \
+                    this.codebook_entries * this.codebook_dimensions
 
             this.codebook_multiplicands = []
             for i in range(this.codebook_lookup_values):

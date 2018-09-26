@@ -49,8 +49,8 @@ reading'''
     def read_bit(self):
         '''Method reads and return one bit from current packet data'''
         try:
-            required_bit = bool(self._current_packet[self.byte_pointer] &
-                                (1 << self.bit_pointer))
+            required_bit = bool(self._current_packet[self.byte_pointer]
+                                & (1 << self.bit_pointer))
         except IndexError:
             raise EndOfPacketError('End of packet condition triggered')
 
@@ -80,8 +80,8 @@ unsigned int value'''
             return int(number, 2)
         else:
             number = int(number, 2) - 1
-            return -(number ^
-                     int(''.join(['1' for i in range(bits_count)]), 2))
+            return -(number
+                     ^ int(''.join(['1' for i in range(bits_count)]), 2))
 
 
 class PacketsProcessor:
@@ -259,8 +259,8 @@ class PacketsProcessor:
             placeholder = self._read_bits_for_int(16)
             if placeholder != 0:
                 raise ValueError('[vorbis_time_count] placeholders '
-                                 'are contain nonzero value. Number: ' +
-                                 str(i))
+                                 'are contain nonzero value. Number: '
+                                 + str(i))
 
         vorbis_floor_count = self._read_bits_for_int(6) + 1
         vorbis_floor_types = []

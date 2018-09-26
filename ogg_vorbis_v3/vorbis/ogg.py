@@ -107,9 +107,9 @@ the beginning of a page'''
         #  page_checksum
 
         page_segments_number = self._file[self.byte_pointer + 26]
-        segment_table = self._file[self.byte_pointer + 27:
-                                   self.byte_pointer + 27 +
-                                   page_segments_number]
+        segment_table = \
+            self._file[self.byte_pointer + 27:
+                       self.byte_pointer + 27 + page_segments_number]
         segment_table_result = sum(segment_table)
 
         self.byte_pointer = self.byte_pointer + 27 + page_segments_number
