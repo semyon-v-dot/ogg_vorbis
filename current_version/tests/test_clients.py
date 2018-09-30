@@ -78,7 +78,7 @@ class ConsoleClientTests(unittest.TestCase):
     at the end for convenient look
 [vendor_string]
     Main comment string. Contains:
-        Nothing. String is absent
+        Nothing. String(s) is(are) absent
 [user_comment_list_strings]
     User comment strings. May be not set. Contains:
         ALBUM=The Witcher 3: Wild Hunt (GameRip Soundtrack)

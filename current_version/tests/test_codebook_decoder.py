@@ -110,10 +110,10 @@ class HuffmanTests(unittest.TestCase):  # test not only bfc
         codebook_decoder = CodebookDecoder(DataReader(PATH_ORDINARY_TEST_1))
 
         codebook_codewords_lengths = [2, 5, 5, 4,
-                                     5, 4, 5, 4, 5, 5, 5, 5, 5,
-                                     5, 6, 5, 6, 5, 6, 5, 7, 6,
-                                     7, 6, 7, 6, 8, 6, 9, 7, 9,
-                                     7]
+                                      5, 4, 5, 4, 5, 5, 5, 5, 5,
+                                      5, 6, 5, 6, 5, 6, 5, 7, 6,
+                                      7, 6, 7, 6, 8, 6, 9, 7, 9,
+                                      7]
         codebook_codewords = ['00', '01000', '01001', '0101', '01100', '0111',
                               '01101', '1000', '10010', '10011', '10100',
                               '10101', '10110', '10111', '110000', '11001',

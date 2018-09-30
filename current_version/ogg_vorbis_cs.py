@@ -53,7 +53,7 @@ internal values'''
 [vendor_string]
     Main comment string. Contains:
 '''.format(logical_stream.comment_header_decoding_failed)
-        
+
     output_ += _process_comment_lines(logical_stream, 'vendor_string')
     output_ += '''\
 [user_comment_list_strings]
@@ -64,12 +64,12 @@ internal values'''
 
     return output_[:-1]
 
-    
+
 def _process_comment_lines(logical_stream, lines_name):
     if not hasattr(logical_stream, lines_name) or \
        len(getattr(logical_stream, lines_name)) == 0:
         return "        Nothing. String(s) is(are) absent\n"
-    
+
     lines = getattr(logical_stream, lines_name)
     if type(lines) == str:
         lines = [lines]
@@ -80,7 +80,7 @@ def _process_comment_lines(logical_stream, lines_name):
             output_ += "        " + line_[:1000] + "[...]\n"
         else:
             output_ += "        " + line_ + "\n"
-            
+
     return output_
 
 
@@ -97,29 +97,29 @@ if __name__ == '__main__':
                     'output headers data')
 
     parser.add_argument(
-        '--version', 
+        '--version',
         help="print program's current version number",
         action='version',
         version=CURRENT_VERSION)
-    
+
     parser.add_argument(
-        '--headers', 
+        '--headers',
         help="stores string (without spaces) with names of headers for output.\
  'ident'(identification), 'comment' and 'setup' headers are presented. \
 Default value: 'ident,comment' - so 'ident' and 'comment' headers are printes \
 if this argument is absent",
         default='ident,comment')
-    
+
     parser.add_argument(
-        'filepath', 
-        help='path to file which will be processed',
+        'filepath',
+        help='path to .ogg audiofile',
         type=str)
 
     args = parser.parse_args()
-        
+
     packets_processor = PacketsProcessor(args.filepath)
     packets_processor.process_headers()
-    
+
     if 'ident' in args.headers:
         print(generate_ident_header(packets_processor.logical_streams[0]))
     if 'comment' in args.headers:

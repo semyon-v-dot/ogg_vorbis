@@ -92,6 +92,11 @@ class HelperFunctionsTests(unittest.TestCase):
         assert float32_unpack(0x60A03250) == (12880 * pow(2, -15))
         assert float32_unpack(0xE0A03250) == -(12880 * pow(2, -15))
 
+    def test_bit_reverse(self):
+        assert bit_reverse(1879048192) == 14
+        assert bit_reverse(64424509440) == 0
+        assert bit_reverse(48) == 201326592
+
 
 class PacketsProcessorTests(unittest.TestCase):
     def test_process_headers(self):

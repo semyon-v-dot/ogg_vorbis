@@ -10,11 +10,11 @@ class PacketsReader:
             with open(filename, 'rb') as temp_file:
                 self._file = temp_file.read()
         except FileNotFoundError:
-            print("File name is incorrect: " + filename)
             exit(ERROR_INCORRECT_FILE_NAME)
+            print("File name is incorrect: " + filename.name)
 
         if self._file[:4] != b'OggS':
-            print('File not an ogg container: ' + filename)
+            print('File not an ogg container: ' + filename.name)
             exit(ERROR_FILE_FORMAT_NOT_OGG)
 
         self.byte_pointer = 0

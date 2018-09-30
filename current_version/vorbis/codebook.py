@@ -187,8 +187,8 @@ array [codebook_codewords_lengths]'''
         if not this.ordered:
             this.sparse = bool(self._read_bit())
         this.codebook_codewords_lengths =\
-            self._read_codeword_lengths(this.ordered, 
-                                        this.sparse, 
+            self._read_codeword_lengths(this.ordered,
+                                        this.sparse,
                                         this.codebook_entries)
         this.codebook_codewords = [0 for i in range(this.codebook_entries)]
         # self._Huffman_tree_decode(this.sparse,
