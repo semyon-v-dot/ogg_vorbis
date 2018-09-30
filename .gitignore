@@ -1,2 +1,6 @@
-/ogg_vorbis_send/
-/ogg_vorbis_send.7z
+debug.py
+.coverage
+__pycache__/
+.pytest_cache/
+tests/__pycache__/
+vorbis/__pycache__/
