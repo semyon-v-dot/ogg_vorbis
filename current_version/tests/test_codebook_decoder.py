@@ -37,7 +37,7 @@ class CodebookDecodingTests(unittest.TestCase):
         self.assertEqual(RBF.codebook_dimensions, 1)
         self.assertEqual(RBF.codebook_entries, 8)
         self.assertEqual(RBF.ordered, 0)
-        self.assertEqual(RBF.codebook_codeword_lengths,
+        self.assertEqual(RBF.codebook_codewords_lengths,
                          [1, 3, 4, 7, 2, 5, 6, 7])
         # self.assertEqual(RBF.codebook_codewords,
         #                  ['0', '100', '1010', '1011000',
@@ -66,9 +66,9 @@ class CodebookDecodingTests(unittest.TestCase):
         self.assertEqual(RBF.codebook_dimensions, 1)
         self.assertEqual(RBF.codebook_entries, 32)
         self.assertEqual(RBF.ordered, 0)
-        self.assertEqual(len(RBF.codebook_codeword_lengths),
+        self.assertEqual(len(RBF.codebook_codewords_lengths),
                          RBF.codebook_entries)
-        self.assertEqual(RBF.codebook_codeword_lengths,
+        self.assertEqual(RBF.codebook_codewords_lengths,
                          [2, 5, 5, 4,
                           5, 4, 5, 4, 5, 5, 5, 5, 5,
                           5, 6, 5, 6, 5, 6, 5, 7, 6,
@@ -89,27 +89,27 @@ class HuffmanTests(unittest.TestCase):  # test not only bfc
     def test_ordinary_1_Huffman_tree_decode(self):
         codebook_decoder = CodebookDecoder(DataReader(PATH_ORDINARY_TEST_1))
 
-        codebook_codeword_lengths = [-1, 2, 4, 4, 4, 4, 2, 3, 3]
+        codebook_codewords_lengths = [-1, 2, 4, 4, 4, 4, 2, 3, 3]
         codebook_codewords = ['', '00', '0100', '0101',
                               '0110', '0111', '10', '110', '111']
         assert codebook_decoder.\
-            _Huffman_tree_decode_bfc(9, codebook_codeword_lengths) == \
+            _Huffman_tree_decode_bfc(9, codebook_codewords_lengths) == \
             codebook_codewords
 
     def test_ordinary_2_Huffman_tree_decode(self):
         codebook_decoder = CodebookDecoder(DataReader(PATH_ORDINARY_TEST_1))
 
-        codebook_codeword_lengths = [1, 3, 4, 7, 2, 5, 6, 7]
+        codebook_codewords_lengths = [1, 3, 4, 7, 2, 5, 6, 7]
         codebook_codewords = ['0', '100', '1010', '1011000',
                               '11', '10111', '101101', '1011001']
         assert codebook_decoder.\
-            _Huffman_tree_decode_bfc(8, codebook_codeword_lengths) == \
+            _Huffman_tree_decode_bfc(8, codebook_codewords_lengths) == \
             codebook_codewords
 
     def test_long_Huffman_tree_decode(self):
         codebook_decoder = CodebookDecoder(DataReader(PATH_ORDINARY_TEST_1))
 
-        codebook_codeword_lengths = [2, 5, 5, 4,
+        codebook_codewords_lengths = [2, 5, 5, 4,
                                      5, 4, 5, 4, 5, 5, 5, 5, 5,
                                      5, 6, 5, 6, 5, 6, 5, 7, 6,
                                      7, 6, 7, 6, 8, 6, 9, 7, 9,
@@ -122,16 +122,16 @@ class HuffmanTests(unittest.TestCase):  # test not only bfc
                               '111101', '11110010', '111110', '111100110',
                               '1111110', '111100111', '1111111']
         assert codebook_decoder.\
-            _Huffman_tree_decode_bfc(32, codebook_codeword_lengths) == \
+            _Huffman_tree_decode_bfc(32, codebook_codewords_lengths) == \
             codebook_codewords
 
     def test_two_entries_Huffman_tree_decode(self):
         codebook_decoder = CodebookDecoder(DataReader(PATH_ORDINARY_TEST_1))
 
-        codebook_codeword_lengths = [1, 1]
+        codebook_codewords_lengths = [1, 1]
         codebook_codewords = ['0', '1']
         assert codebook_decoder.\
-            _Huffman_tree_decode_bfc(2, codebook_codeword_lengths) == \
+            _Huffman_tree_decode_bfc(2, codebook_codewords_lengths) == \
             codebook_codewords
 
 

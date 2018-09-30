@@ -79,24 +79,23 @@ class CodebookDecoder:
 
     def _Huffman_tree_decode_bfc(self,  # Extremely slow code!
                                  codebook_entries,
-                                 codebook_codeword_lengths,
-                                 partly_decoded_codewords):
+                                 codebook_codewords_lengths):
         '''Method decode Huffman tree from [codebook_entries] value and \
-array [codebook_codeword_lengths] with brute force method'''
-        return_values = partly_decoded_codewords
+array [codebook_codewords_lengths] with brute force method'''
+        return_values = []
         for i in range(len(return_values), codebook_entries):
-            if codebook_codeword_lengths[i] == -1:
+            if codebook_codewords_lengths[i] == -1:
                 return_values += ['']
                 continue
 
             bfs_value = ''\
-                .join(["1" for i in range(codebook_codeword_lengths[i])])
+                .join(["1" for i in range(codebook_codewords_lengths[i])])
             for value in return_values:
                 if len(value) == len(bfs_value) and \
                    int(value, 2) < int(bfs_value, 2):
                     bfs_value = value
             if '0' not in bfs_value:
-                bfs_value = ''.zfill(codebook_codeword_lengths[i])
+                bfs_value = ''.zfill(codebook_codewords_lengths[i])
 
             while '0' in bfs_value:
                 for value in return_values:
@@ -108,7 +107,7 @@ array [codebook_codeword_lengths] with brute force method'''
                     break
 
                 bfs_value = bin(int(bfs_value, 2) + 1)[2:]\
-                    .zfill(codebook_codeword_lengths[i])
+                    .zfill(codebook_codewords_lengths[i])
 
             return_values += [bfs_value]
 
@@ -116,63 +115,14 @@ array [codebook_codeword_lengths] with brute force method'''
 
         return return_values
 
-    def add_entry(self, codewords, huff_code, symbol, count, sparse):
-        if not sparse:
-            codewords[symbol] = huff_code
-        else:
-            codewords[count] = huff_code
-        
     def _Huffman_tree_decode(self,  # Unclear code
                              sparse,
                              codebook_codewords,
                              codebook_entries,
-                             codebook_codeword_lengths):
+                             codebook_codewords_lengths):
         '''Method decode Huffman tree from [codebook_entries] value and \
-array [codebook_codeword_lengths]'''
-        m = 0;
-        available = [0 for i in range(32)]
-        
-        for k in range(codebook_entries):
-            if _len[k] != -1:
-                break
-        
-        if k == codebook_entries:
-            #  assert(c->sorted_entries == 0)
-            return True
-            
-        add_entry(codebook_codewords, codebook_codeword_lengths, 
-                  0, k, m, _len[k], values, sparse)
-        m += 1
-        
-        for i in range(1, _len[k] + 1):
-            available[i] = 1 << (32 - i);
-            
-        for i in range(k + 1, codebook_entries):
-            res = 0;
-            z = _len[i]
-            y = 0
-            
-            if z == -1:
-                continue
-            while z > 0 and not available[z]:
-                z -= 1
-            if z == 0:
-                raise ValueError("Overspecified Huffman tree")
-                
-            res = available[z];
-            if not (z >= 0 and z < 32):
-                raise ValueError("z not in [0, 32)")
-            available[z] = 0;
-            
-            add_entry(codebook_codewords, codebook_codeword_lengths, 
-                      bit_reverse(res), i, m, _len[i], values, sparse);
-            m += 1
-            
-            if (z != _len[i]):
-                #  assert(len[i] >= 0 && len[i] < 32)
-                for y in range(_len[i], z, -1):
-                    #  assert(available[y] == 0);
-                    available[y] = res + (1 << (32 - y))
+array [codebook_codewords_lengths]'''
+        pass
 
     def _VQ_lookup_table_unpack(self,  # Unclear code
                                 codebook_multiplicands,
@@ -236,7 +186,7 @@ array [codebook_codeword_lengths]'''
         this.ordered = bool(self._read_bit())
         if not this.ordered:
             this.sparse = bool(self._read_bit())
-        this.codebook_codeword_lengths =\
+        this.codebook_codewords_lengths =\
             self._read_codeword_lengths(this.ordered, 
                                         this.sparse, 
                                         this.codebook_entries)
@@ -244,7 +194,7 @@ array [codebook_codeword_lengths]'''
         # self._Huffman_tree_decode(this.sparse,
         #                           this.codebook_codewords,
         #                           this.codebook_entries,
-        #                           this.codebook_codeword_lengths)
+        #                           this.codebook_codewords_lengths)
 
         this.codebook_lookup_type = self._read_bits_for_int(4)
         if this.codebook_lookup_type > 2:
