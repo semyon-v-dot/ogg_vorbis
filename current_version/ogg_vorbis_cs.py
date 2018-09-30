@@ -1,4 +1,4 @@
-from sys import argv
+from argparse import ArgumentParser
 from vorbis.vorbis_main import PacketsProcessor
 
 
@@ -53,79 +53,76 @@ internal values'''
 [vendor_string]
     Main comment string. Contains:
 '''.format(logical_stream.comment_header_decoding_failed)
-
-    if not hasattr(logical_stream, 'vendor_string') or \
-       len(logical_stream.vendor_string) == 0:
-        output_ += "        Nothing. String is absent\n"
-    elif len(logical_stream.vendor_string) > 1000:
-        output_ += "        " + logical_stream.vendor_string[:1000] + \
-            "[...]\n"
-    else:
-        output_ += "        " + logical_stream.vendor_string + "\n"
-
+        
+    output_ += _process_comment_lines(logical_stream, 'vendor_string')
     output_ += '''\
 [user_comment_list_strings]
     User comment strings. May be not set. Contains:
 '''
-    if not hasattr(logical_stream, 'user_comment_list_strings') or \
-       len(logical_stream.user_comment_list_strings) == 0:
-        output_ += "        Nothing. Strings are absent"
-        return output_
-    for string_ in logical_stream.user_comment_list_strings:
-        if len(string_) > 1000:
-            output_ += "        " + string_[:1000] + "[...]\n"
-        else:
-            output_ += "        " + string_ + "\n"
+    output_ += \
+        _process_comment_lines(logical_stream, 'user_comment_list_strings')
 
     return output_[:-1]
+
+    
+def _process_comment_lines(logical_stream, lines_name):
+    if not hasattr(logical_stream, lines_name) or \
+       len(getattr(logical_stream, lines_name)) == 0:
+        return "        Nothing. String(s) is(are) absent\n"
+    
+    lines = getattr(logical_stream, lines_name)
+    if type(lines) == str:
+        lines = [lines]
+    output_ = ''
+
+    for line_ in lines:
+        if len(line_) > 1000:
+            output_ += "        " + line_[:1000] + "[...]\n"
+        else:
+            output_ += "        " + line_ + "\n"
+            
+    return output_
 
 
 def generate_setup_header(logical_stream):  # WIP
     pass
 
 
-help = '''\
-Usage: ogg_vorbis_cs.py [Options] audiofile
-
-Options:
-    --version                   Print program's version number and exit
-    -h, --help                  Print this help message and exit
-    --headers=[headers_types]   Print specified in [headers_types]
-                                headers. 'ident'(identification), 'comment' and
-                                'setup' headers are presented. 'ident'
-                                and 'comment' headers are printes if this
-                                command is absent
-'''
+CURRENT_VERSION = 'ogg_vorbis 3'
 
 
-if __name__ == '__main__':  # tests
-    if len(argv) == 1:
-        exit('Try \'ogg_vorbis_cs.py --help\'')
-    if argv[1] in ('--help', '-h'):
-        exit(help)
+if __name__ == '__main__':
+    parser = ArgumentParser(
+        description='Process .ogg audiofile with vorbis coding and '
+                    'output headers data')
 
-    if argv[1] == '--version':
-        exit('Current version: ' + '2')
+    parser.add_argument(
+        '--version', 
+        help="print program's current version number",
+        action='version',
+        version=CURRENT_VERSION)
+    
+    parser.add_argument(
+        '--headers', 
+        help="stores string (without spaces) with names of headers for output.\
+ 'ident'(identification), 'comment' and 'setup' headers are presented. \
+Default value: 'ident,comment' - so 'ident' and 'comment' headers are printes \
+if this argument is absent",
+        default='ident,comment')
+    
+    parser.add_argument(
+        'filepath', 
+        help='path to file which will be processed',
+        type=str)
 
-    argv_file_number = 1
-
-    ident_needed = True
-    comment_needed = True
-    setup_needed = False
-    if argv[1][:10] == '--headers=':
-        ident_needed = comment_needed = setup_needed = False
-        ident_needed = 'ident' in argv[1]
-        comment_needed = 'comment' in argv[1]
-        setup_needed = 'setup' in argv[1]
-
-        argv_file_number += 1
-
-    packets_processor = PacketsProcessor(argv[argv_file_number])
+    args = parser.parse_args()
+        
+    packets_processor = PacketsProcessor(args.filepath)
     packets_processor.process_headers()
-
-    if ident_needed:
+    
+    if 'ident' in args.headers:
         print(generate_ident_header(packets_processor.logical_streams[0]))
-    if comment_needed:
+    if 'comment' in args.headers:
         print(generate_comment_header(packets_processor.logical_streams[0]))
-    if setup_needed:
+    if 'setup' in args.headers:
         print(generate_setup_header(packets_processor.logical_streams[0]))

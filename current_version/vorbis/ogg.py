@@ -1,9 +1,11 @@
 from .errors import *
+from pathlib import Path
 
 
 class PacketsReader:
     '''Class for reading packets'''
     def __init__(self, filename):
+        filename = Path(filename)
         try:
             with open(filename, 'rb') as temp_file:
                 self._file = temp_file.read()
