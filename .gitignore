@@ -2,5 +2,3 @@ debug.py
 .coverage
 __pycache__/
 .pytest_cache/
-tests/__pycache__/
-vorbis/__pycache__/
