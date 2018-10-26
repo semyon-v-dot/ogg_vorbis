@@ -1,25 +1,32 @@
-from .helper_funcs import *
-from .errors import *
+from .ogg import CorruptedFileDataError
+from .helper_funcs import (
+    shorter_attribute_creation, 
+    float32_unpack, 
+    lookup1_values, 
+    ilog, 
+    bit_reverse)
 
 
 class CodebookDecoder:
     '''Class represents decoder of vorbis codebooks'''
     def __init__(self, data_reader):
         self._read_bit = data_reader.read_bit
-        self._read_byte = data_reader.read_byte
+        self._read_bits = data_reader.read_bits
         self._read_bits_for_int = data_reader.read_bits_for_int
+
+        self._read_byte = data_reader.read_byte
+        self._read_bytes = data_reader.read_bytes
 
     def _check_codebook_sync_pattern(self):
         '''Method checks if there is a codebook sync pattern in packet data'''
-        pattern = b''
-        for i in range(3):
-            pattern += self._read_byte()
+        pattern = self._read_bytes(3)
 
         if pattern != b'\x42\x43\x56':
-            print('Codebook sync pattern is absent')
-            exit(ERROR_CODEBOOK_SYNC_PATTERN_IS_ABSENT)
+            raise CorruptedFileDataError(
+                'Codebook sync pattern is absent')
 
-    def _read_codeword_lengths(self, ordered, sparse, codebook_entries):
+    def _read_codeword_lengths(self, 
+            ordered, sparse, codebook_entries):  # assert codeword_length < 32
         '''Method reads codewords lengths from packet data'''
         returned_codeword_lengths = []
         if not ordered:
@@ -28,14 +35,13 @@ class CodebookDecoder:
                     flag = bool(self._read_bit())
 
                     if flag:
-                        returned_codeword_lengths +=\
-                            [self._read_bits_for_int(5) + 1]
+                        returned_codeword_lengths.append(
+                            self._read_bits_for_int(5) + 1)
                     else:
-                        returned_codeword_lengths +=\
-                            [-1]
+                        returned_codeword_lengths.append(-1)
                 else:
-                    returned_codeword_lengths +=\
-                        [self._read_bits_for_int(5) + 1]
+                    returned_codeword_lengths.append(
+                        self._read_bits_for_int(5) + 1)
         else:
             current_entry = 0
             current_length = self._read_bits_for_int(5) + 1
@@ -45,84 +51,121 @@ class CodebookDecoder:
                     ilog(codebook_entries - current_entry))
 
                 for i in range(current_entry, current_entry + number):
-                    returned_codeword_lengths += [current_length]
+                    returned_codeword_lengths.append(current_length)
 
                 current_entry = number + current_entry
                 current_length += 1
 
                 if current_entry > codebook_entries:
-                    print("Incorrect codebook lengths coding")
-                    exit(ERROR_CODEBOOK_LENGTHS_INCORRECT_CODING)
+                    raise CorruptedFileDataError(
+                        "Incorrect codebook lengths coding")
 
         return returned_codeword_lengths
 
-    def _Huffman_tree_fullness_check(self, codewords):  # Slow code
+    def _Huffman_bfc_fullness_check(self, codewords):  # Slow code
         '''Method checks if decoded Huffman tree is full'''
-        for i in range(len(codewords)):
-            if len(codewords[i]) == 0:
+        for codeword_1 in codewords:
+            if len(codeword_1) == 0:
                 continue
 
             paired_node_is_present = False
-            for j in range(len(codewords)):
-                if len(codewords[j]) == 0:
+            for codeword_2 in codewords:
+                if len(codeword_2) == 0 or codeword_1 == codeword_2:
                     continue
 
-                min_len = min(len(codewords[i]), len(codewords[j]))
-                if codewords[i][:min_len - 1] ==\
-                   codewords[j][:min_len - 1] and\
-                   codewords[i][min_len - 1] != codewords[j][min_len - 1]:
+                min_len = min(len(codeword_1), len(codeword_2))
+                if codeword_1[:min_len - 1] == codeword_2[:min_len - 1]:
                     paired_node_is_present = True
                     break
             if not paired_node_is_present:
-                print('Huffman tree is underspecified')
-                exit(ERROR_HUFFMAN_TREE_IS_UNDERSPECIFIED)
+                raise CorruptedFileDataError(
+                    'Huffman tree is underspecified')
 
-    def _Huffman_tree_decode_bfc(self,  # Extremely slow code!
+    def _Huffman_decode_bfc(self,  # Extremely slow code!
                                  codebook_entries,
                                  codebook_codewords_lengths):
         '''Method decode Huffman tree from [codebook_entries] value and \
 array [codebook_codewords_lengths] with brute force method'''
         return_values = []
-        for i in range(len(return_values), codebook_entries):
+        for i in range(0, codebook_entries):
             if codebook_codewords_lengths[i] == -1:
-                return_values += ['']
+                return_values.append('')
                 continue
 
-            bfs_value = ''\
+            bfc_value = ''\
                 .join(["1" for i in range(codebook_codewords_lengths[i])])
             for value in return_values:
-                if len(value) == len(bfs_value) and \
-                   int(value, 2) < int(bfs_value, 2):
-                    bfs_value = value
-            if '0' not in bfs_value:
-                bfs_value = ''.zfill(codebook_codewords_lengths[i])
+                if len(value) == len(bfc_value) and \
+                   int(value, 2) < int(bfc_value, 2):
+                    bfc_value = value
+            if '0' not in bfc_value:
+                bfc_value = ''.zfill(codebook_codewords_lengths[i])
 
-            while '0' in bfs_value:
+            while '0' in bfc_value:
                 for value in return_values:
-                    prefix_length = min(len(value), len(bfs_value))
+                    prefix_length = min(len(value), len(bfc_value))
                     if prefix_length != 0 and \
-                       value[:prefix_length] == bfs_value[:prefix_length]:
+                       value[:prefix_length] == bfc_value[:prefix_length]:
                         break
                 else:
                     break
 
-                bfs_value = bin(int(bfs_value, 2) + 1)[2:]\
+                bfc_value = bin(int(bfc_value, 2) + 1)[2:]\
                     .zfill(codebook_codewords_lengths[i])
 
-            return_values += [bfs_value]
+            return_values.append(bfc_value)
 
-        self._Huffman_tree_fullness_check(return_values)
+        self._Huffman_bfc_fullness_check(return_values)
 
         return return_values
 
-    def _Huffman_tree_decode(self,  # Unclear code
-                             sparse,
-                             codebook_codewords,
-                             codebook_entries,
-                             codebook_codewords_lengths):
+    def _Huffman_decode_int_repres(self,
+            codebook_entries,
+            codewords_lengths):
         '''Method decode Huffman tree from [codebook_entries] value and \
-array [codebook_codewords_lengths]'''
-        pass
+array [codewords_lengths] with int codewords representation method'''
+        assert codebook_entries == len(codewords_lengths)
+
+        for start_entry in range(codebook_entries):
+            if codewords_lengths[start_entry] != -1:
+                break
+
+            yield ''
+        else:
+            return
+
+        yield ''.zfill(codewords_lengths[start_entry])
+
+        available = [0 for i in range(32)]
+        for i in range(1, codewords_lengths[start_entry] + 1):
+            available[i] = 1 << (32 - i);
+
+        for i in range(start_entry + 1, codebook_entries):  
+            max_available_branch = codewords_lengths[i]
+
+            if max_available_branch == -1:
+                yield ''
+                continue
+            while (max_available_branch > 0 
+                    and available[max_available_branch] == 0):
+                max_available_branch -= 1
+            assert 0 < max_available_branch < 32
+
+            result = available[max_available_branch]
+            available[max_available_branch] = 0
+
+            codeword = bin(bit_reverse(result))[2:]
+            codeword = (''.zfill(codewords_lengths[i] - len(codeword))
+                        + codeword) 
+            yield codeword
+
+            if (max_available_branch != codewords_lengths[i]):
+                for new_branch in range(
+                        codewords_lengths[i], 
+                        max_available_branch, 
+                        -1):
+                    assert available[new_branch] == 0
+                    available[new_branch] = result + (1 << (32 - new_branch))
 
     def _VQ_lookup_table_unpack(self,  # Unclear code
                                 codebook_multiplicands,
@@ -141,11 +184,11 @@ array [codebook_codewords_lengths]'''
                     multiplicand_offset = \
                         (lookup_offset // index_divisor) \
                         % codebook_lookup_values
-                    value_vector +=\
-                        [codebook_multiplicands[multiplicand_offset]
-                         * codebook_delta_value
-                         + codebook_minimum_value
-                         + last]
+                    value_vector.append(
+                        codebook_multiplicands[multiplicand_offset]
+                        * codebook_delta_value
+                        + codebook_minimum_value
+                        + last)
                     if codebook_sequence_p:
                         last = value_vector[i]
                     index_divisor *= codebook_lookup_values
@@ -157,11 +200,11 @@ array [codebook_codewords_lengths]'''
                 multiplicand_offset = lookup_offset * codebook_dimensions
                 value_vector = []
                 for i in range(codebook_dimensions):
-                    value_vector +=\
-                        [codebook_multiplicands[multiplicand_offset]
-                         * codebook_delta_value
-                         + codebook_minimum_value
-                         + last]
+                    value_vector.append(
+                        codebook_multiplicands[multiplicand_offset]
+                        * codebook_delta_value
+                        + codebook_minimum_value
+                        + last)
                     if codebook_sequence_p:
                         last = value_vector[i]
                     multiplicand_offset += 1
@@ -173,16 +216,12 @@ array [codebook_codewords_lengths]'''
         '''Method reads full codebook from packet data'''
         self._check_codebook_sync_pattern()
 
-        this.codebook_dimensions = int.from_bytes(self._read_byte()
-                                                  + self._read_byte(),
+        this.codebook_dimensions = int.from_bytes(self._read_bytes(2),
                                                   byteorder='little')
-        this.codebook_entries = int.from_bytes(self._read_byte()
-                                               + self._read_byte()
-                                               + self._read_byte(),
+        this.codebook_entries = int.from_bytes(self._read_bytes(3),
                                                byteorder='little')
         if this.codebook_entries == 1:
-            print('Single codebook entry')
-            exit(ERROR_CODEBOOK_SINGLE_ENTRY)
+            raise CorruptedFileDataError('Single codebook entry given')
         this.ordered = bool(self._read_bit())
         if not this.ordered:
             this.sparse = bool(self._read_bit())
@@ -191,14 +230,15 @@ array [codebook_codewords_lengths]'''
                                         this.sparse,
                                         this.codebook_entries)
         this.codebook_codewords = [0 for i in range(this.codebook_entries)]
-        # self._Huffman_tree_decode(this.sparse,
-        #                           this.codebook_codewords,
-        #                           this.codebook_entries,
-        #                           this.codebook_codewords_lengths)
+        this.codewords = list(
+            self._Huffman_decode_int_repres(
+                this.codebook_entries,
+                this.codebook_codewords_lengths))
 
         this.codebook_lookup_type = self._read_bits_for_int(4)
-        if this.codebook_lookup_type > 2:
-            raise ValueError('Nonsupported lookup type')
+        assert 0 <= this.codebook_lookup_type <= 2, (
+            'Nonsupported lookup type: '
+            + str(this.codebook_lookup_type))
         if this.codebook_lookup_type != 0:
             this.codebook_minimum_value =\
                 float32_unpack(self._read_bits_for_int(32))
@@ -217,9 +257,9 @@ array [codebook_codewords_lengths]'''
 
             this.codebook_multiplicands = []
             for i in range(this.codebook_lookup_values):
-                this.codebook_multiplicands +=\
-                    [self._read_bits_for_int(
-                        this.codebook_value_bits)]
+                this.codebook_multiplicands.append(
+                    self._read_bits_for_int(
+                        this.codebook_value_bits))
 
             this.VQ_lookup_table = list(
                 self._VQ_lookup_table_unpack(

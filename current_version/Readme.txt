@@ -39,24 +39,3 @@
 Пример запуска: ogg_vorbis_cs.py --headers=ident Immortal.ogg
 
 Справка по командам: --help [аргумент запуска]
-
-    ПОДРОБНОСТИ РЕАЛИЗАЦИИ
-    
-Name                             Stmts   Miss  Cover
-----------------------------------------------------
-ogg_vorbis_cs.py                    48      9    81%
-tests\pathmagic.py                   3      0   100%
-tests\test_clients.py               30      0   100%
-tests\test_codebook_decoder.py      65      1    98%
-tests\test_ogg.py                   49      2    96%
-tests\test_vorbis_main.py           89      1    99%
-vorbis\__init__.py                   0      0   100%
-vorbis\codebook.py                 125     22    82%
-vorbis\errors.py                    19      0   100%
-vorbis\helper_funcs.py              26      1    96%
-vorbis\ogg.py                       68      9    87%
-vorbis\vorbis_main.py              165     27    84%
-----------------------------------------------------
-TOTAL                              700     85    88%
-
-    

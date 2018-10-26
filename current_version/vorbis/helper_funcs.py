@@ -1,5 +1,8 @@
+from functools import wraps as functools_wraps
+
 def shorter_attribute_creation(func):
     '''Decorator shorten function attributes creation'''
+    @functools_wraps(func)
     def wrapped(*args, **kwargs):
         return func(wrapped, *args, **kwargs)
     return wrapped
@@ -26,9 +29,7 @@ by the decoder for floating point numbers'''
     mantissa = x & 0x1fffff
     sign = x & 0x80000000
     exponent = (x & 0x7fe00000) >> 21
-    if sign < 0 or mantissa < 0 or exponent < 0:
-        raise ValueError('Float32 unpacking failed. '
-                         'Mantissa/sign/exponent is not unsigned')
+    assert sign >= 0 and mantissa >= 0 and exponent >= 0
 
     if sign:
         mantissa *= -1
@@ -48,8 +49,7 @@ for a codebook VQ lookup table of lookup type 1'''
 
 
 def bit_reverse(n):
-    if n < 0:
-        raise ValueError('[bit_reverse] got negative number')
+    assert n >= 0
 
     n = ((n & 0xAAAAAAAA) >> 1) | ((n & 0x55555555) << 1)
     n = ((n & 0xCCCCCCCC) >> 2) | ((n & 0x33333333) << 2)

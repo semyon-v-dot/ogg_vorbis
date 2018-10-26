@@ -1,18 +1,20 @@
-import unittest
-import sys
-import os
+from unittest import (
+    main as unittest_main, 
+    TestCase as unittest_TestCase)
+from os import path as os_path
 import pathmagic
-from vorbis.vorbis_main import DataReader
-from vorbis.vorbis_main import EndOfPacketError
-from vorbis.vorbis_main import PacketsProcessor
-from vorbis.helper_funcs import *
+from vorbis.vorbis_main import DataReader, EndOfPacketError, PacketsProcessor
+from vorbis.helper_funcs import (
+    ilog, lookup1_values, float32_unpack, bit_reverse)
 
 
-PATH_ORDINARY_TEST_1 = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                    'ordinary_test_1.ogg')
+PATH_ORDINARY_TEST_1 = os_path.join(
+    os_path.dirname(os_path.abspath(__file__)),
+    'test_audiofiles',
+    'test_1.ogg')
 
 
-class DataReaderTests(unittest.TestCase):
+class DataReaderTests(unittest_TestCase):
     def test_read_some_bytes(self):
         data_reader = DataReader(PATH_ORDINARY_TEST_1)
 
@@ -77,7 +79,7 @@ class DataReaderTests(unittest.TestCase):
             data_reader.read_bits_for_int(5, signed=True), -11)
 
 
-class HelperFunctionsTests(unittest.TestCase):
+class HelperFunctionsTests(unittest_TestCase):
     def test_ilog(self):
         self.assertEqual(ilog(0), 0)
         self.assertEqual(ilog(1), 1)
@@ -98,7 +100,7 @@ class HelperFunctionsTests(unittest.TestCase):
         assert bit_reverse(48) == 201326592
 
 
-class PacketsProcessorTests(unittest.TestCase):
+class PacketsProcessorTests(unittest_TestCase):
     def test_process_headers(self):
         packets_processor = PacketsProcessor(PATH_ORDINARY_TEST_1)
 
@@ -110,8 +112,8 @@ class PacketsProcessorTests(unittest.TestCase):
         packets_processor._data_reader.read_packet()
         packets_processor._data_reader.byte_pointer = 1
         packets_processor.logical_streams = []
-        packets_processor.logical_streams += \
-            [PacketsProcessor.LogicalStream(0)]
+        packets_processor.logical_streams.append(
+            PacketsProcessor.LogicalStream(0))
         packets_processor._process_identification_header()
 
 # 0000000  1  1011  1000
@@ -134,4 +136,4 @@ class PacketsProcessorTests(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    unittest.main()
+    unittest_main()
