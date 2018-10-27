@@ -1,5 +1,5 @@
 from unittest import (
-    main as unittest_main, 
+    main as unittest_main,
     TestCase as unittest_TestCase)
 from os import path as os_path
 import pathmagic

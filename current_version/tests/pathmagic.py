@@ -1,5 +1,5 @@
 from os import (
-    pardir as os_pardir, 
+    pardir as os_pardir,
     path as os_path)
 from sys import path as sys_path
 
