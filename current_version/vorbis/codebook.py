@@ -5,6 +5,7 @@ from .helper_funcs import (
     lookup1_values, 
     ilog, 
     bit_reverse)
+from dataclasses import dataclass
 
 
 class CodebookDecoder:
@@ -211,6 +212,13 @@ array [codewords_lengths] with int codewords representation method'''
 
                 yield value_vector
 
+    @dataclass
+    class CodebookData:
+        '''Class for storing codebook data'''
+        codebook_codewords: tuple
+        VQ_lookup_table: tuple
+        codebook_lookup_type: int
+
     @shorter_attribute_creation
     def read_codebook(this, self):
         '''Method reads full codebook from packet data'''
@@ -229,8 +237,7 @@ array [codewords_lengths] with int codewords representation method'''
             self._read_codeword_lengths(this.ordered,
                                         this.sparse,
                                         this.codebook_entries)
-        this.codebook_codewords = [0 for i in range(this.codebook_entries)]
-        this.codewords = list(
+        this.codebook_codewords = tuple(
             self._Huffman_decode_int_repres(
                 this.codebook_entries,
                 this.codebook_codewords_lengths))
@@ -261,7 +268,7 @@ array [codewords_lengths] with int codewords representation method'''
                     self._read_bits_for_int(
                         this.codebook_value_bits))
 
-            this.VQ_lookup_table = list(
+            this.VQ_lookup_table = tuple(
                 self._VQ_lookup_table_unpack(
                     this.codebook_multiplicands,
                     this.codebook_minimum_value,
@@ -272,5 +279,9 @@ array [codewords_lengths] with int codewords representation method'''
                     this.codebook_dimensions,
                     this.codebook_lookup_values))
 
-            return (this.codebook_codewords, this.VQ_lookup_table)
-        return (this.codebook_codewords, ())
+            return self.CodebookData(
+                this.codebook_codewords,
+                this.VQ_lookup_table,
+                this.codebook_lookup_type)
+
+        return self.CodebookData(this.codebook_codewords, (), 0)

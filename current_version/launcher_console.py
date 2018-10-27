@@ -4,7 +4,8 @@ from sys import (
     exit as sys_exit, 
     argv as sys_argv,
     executable as sys_executable)
-from vorbis.vorbis_main import PacketsProcessor, FileNotVorbisError
+from vorbis.vorbis_main import (
+    PacketsProcessor, FileNotVorbisError, EndOfPacketError)
 from vorbis.ogg import (
     CorruptedFileDataError, 
     FileNotAnOggContainerError, 
@@ -90,23 +91,90 @@ def _process_comment_lines(logical_stream, lines_name):
 def generate_setup_header(logical_stream):  # WIP
     '''Function generate setup header from input [logical_stream] \
 internal values'''
-    return f'''
+    output_info = f'''
 {'-'*8}SETUP HEADER INFO:
 
-NOT IMPLEMENTED YET
-'''
+[vorbis_floor_types] = {logical_stream.vorbis_floor_types}
+        Vorbis encodes a spectral ’floor’ vector for each PCM channel. This 
+    vector is a low-resolution representation of the audio spectrum for the 
+    given channel in the current frame, generally used akin to a whitening 
+    filter. It is named a ’floor’ because the Xiph.Org reference encoder has 
+    historically used it as a unit-baseline for spectral resolution.
+        A floor encoding may be of two types. Floor 0 uses a packed LSP 
+    representation on a dB amplitude scale and Bark frequency scale. Floor 1 
+    represents the curve as a piecewise linear interpolated representation on 
+    a dB amplitude scale and linear frequency scale.
+[vorbis_floor_configurations]:
+    '''
+    output_info += f'\n{" "*4}'.join(
+        [str(config) for config in 
+            logical_stream.vorbis_floor_configurations])
 
+    output_info += f'''
 
-def _clear_argv_for_debug(old_argv):
-    '''Function clears input argv from any "--debug" or "-d" commands'''
-    new_argv = list(
-        filter(lambda argument: argument != '--debug', old_argv))
-    for i, argument in enumerate(new_argv):
-        if argument[0] == '-' and argument[1] != '-':
-            new_argv[i] = ''.join(list(
-                filter(lambda letter: letter != 'd', argument)))
+[vorbis_residue_types] = {logical_stream.vorbis_residue_types}
+        A residue vector represents the fine detail of the audio spectrum of 
+    one channel in an audio frame after the encoder subtracts the floor curve 
+    and performs any channel coupling. A residue vector may represent spectral 
+    lines, spectral magnitude, spectral phase or hybrids as mixed by channel 
+    coupling. The exact semantic content of the vector does not matter to the 
+    residue abstraction.
+        Whatever the exact qualities, the Vorbis residue abstraction codes the 
+    residue vectors into the bitstream packet, and then reconstructs the 
+    vectors during decode. Vorbis makes use of three different encoding 
+    variants (numbered 0, 1 and 2) of the same basic vector encoding 
+    abstraction.
+[vorbis_residue_configurations]:
+    '''
+    output_info += f'\n{" "*4}'.join(
+        [str(config) for config in 
+            logical_stream.vorbis_residue_configurations])
 
-    return new_argv
+    output_info += f'''
+
+Mappings:
+        A mapping contains a channel coupling description and a list of ’submaps’ 
+    that bundle sets of channel vectors together for grouped encoding and 
+    decoding. These submaps are not references to external components; the 
+    submap list is internal and specific to a mapping.
+        A ’submap’ is a configuration/grouping that applies to a subset of 
+    floor and residue vectors within a mapping. The submap functions as a last 
+    layer of indirection such that specific special floor or residue settings 
+    can be applied not only to all the vectors in a given mode, but also 
+    specific vectors in a specific mode. Each submap specifies the proper 
+    floor and residue instance number to use for decoding that submap’s 
+    spectral floor and spectral residue vectors.
+[vorbis_mapping_configurations]:
+    '''
+    output_info += f'\n{" "*4}'.join(
+        [str(config) for config in 
+            logical_stream.vorbis_mapping_configurations])
+
+    output_info += f'''
+
+Modes:
+        Each Vorbis frame is coded according to a master ’mode’.
+    A bitstream may use one or many modes.
+        The mode mechanism is used to encode a frame according to one of
+    multiple possible methods with the intention of choosing a method best
+    suited to that frame. Different modes are, e.g. how frame size is changed
+    from frame to frame. The mode number of a frame serves as a top level
+    configuration switch for all other specific aspects of frame decode.
+        A ’mode’ configuration consists of a frame size setting, window type
+    (always 0, the Vorbis window, in Vorbis I), transform type (always type 0,
+    the MDCT, in Vorbis I) and a mapping number. The mapping number specifies
+    which mapping configuration instance to use for low-level packet decode
+    and synthesis.
+[vorbis_mode_configurations]:
+    '''
+    output_info += f'\n{" "*4}'.join(
+        [' '.join([str(i) + ')',
+                   'vorbis_mode_blockflag', '=', str(config[0]), 
+                   'vorbis_mode_mapping', '=', str(config[1])]) 
+            for i, config in enumerate(
+                logical_stream.vorbis_mode_configurations)])
+
+    return output_info
 
 
 CURRENT_VERSION = 'ogg_vorbis 3'
@@ -171,6 +239,9 @@ if __name__ == '__main__':
             sys_exit('End of file unexpectedly reached')
         
         sys_exit(corrupted_data_error)
+    except EndOfPacketError:
+        print("File data is corrupted")
+        sys_exit('End of packet condition unexpectedly triggered')
     except (FileNotVorbisError, FileNotAnOggContainerError,
             FileNotFoundError, IsADirectoryError, PermissionError, OSError
             ) as error_: 
