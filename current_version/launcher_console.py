@@ -3,7 +3,8 @@ from subprocess import run as subprocess_run
 from sys import (
     exit as sys_exit,
     argv as sys_argv,
-    executable as sys_executable)
+    executable as sys_executable,
+    version_info as sys_version_info)
 from vorbis.vorbis_main import (
     PacketsProcessor, FileNotVorbisError, EndOfPacketError)
 from vorbis.ogg import (
@@ -177,7 +178,7 @@ Modes:
     return output_info
 
 
-CURRENT_VERSION = 'ogg_vorbis 3'
+CURRENT_VERSION = 'ogg_vorbis 4'
 PRINT_HEADER = {
     'ident':
         lambda logical_stream: print(generate_ident_header(logical_stream)),
@@ -189,6 +190,11 @@ PRINT_HEADER = {
 
 
 if __name__ == '__main__':
+    if (sys_version_info.major < 3 
+            or (sys_version_info.major == 3 and sys_version_info.minor < 7)):
+        print('Python version 3.7 or upper is required')
+        sys_exit(0)
+
     parser = ArgumentParser(
         description='Process .ogg audiofile with vorbis coding and '
                     'output headers data in console',
@@ -257,4 +263,10 @@ if __name__ == '__main__':
     if arguments.setup:
         PRINT_HEADER['setup'](packets_processor.logical_streams[0])
 
+    a = open('123.jpeg', 'wb')
+    image = packets_processor.logical_streams[0].user_comment_list_strings[-1][9:]
+    def send_bit(bit):
+        
+
     packets_processor.close_file()
+    

@@ -1,6 +1,5 @@
 from functools import wraps as functools_wraps
 
-
 def shorter_attribute_creation(func):
     '''Decorator shorten function attributes creation'''
     @functools_wraps(func)

@@ -1,9 +1,9 @@
 from .ogg import CorruptedFileDataError
 from .helper_funcs import (
-    shorter_attribute_creation,
-    float32_unpack,
-    lookup1_values,
-    ilog,
+    shorter_attribute_creation, 
+    float32_unpack, 
+    lookup1_values, 
+    ilog, 
     bit_reverse)
 from dataclasses import dataclass
 
@@ -26,11 +26,8 @@ class CodebookDecoder:
             raise CorruptedFileDataError(
                 'Codebook sync pattern is absent')
 
-    def _read_codeword_lengths(
-            self,
-            ordered,
-            sparse,
-            codebook_entries):  # assert codeword_length < 32
+    def _read_codeword_lengths(self, 
+            ordered, sparse, codebook_entries):  # assert codeword_length < 32
         '''Method reads codewords lengths from packet data'''
         returned_codeword_lengths = []
         if not ordered:
@@ -85,10 +82,9 @@ class CodebookDecoder:
                 raise CorruptedFileDataError(
                     'Huffman tree is underspecified')
 
-    def _Huffman_decode_bfc(  # Extremely slow code!
-            self,
-            codebook_entries,
-            codebook_codewords_lengths):
+    def _Huffman_decode_bfc(self,  # Extremely slow code!
+                                 codebook_entries,
+                                 codebook_codewords_lengths):
         '''Method decode Huffman tree from [codebook_entries] value and \
 array [codebook_codewords_lengths] with brute force method'''
         return_values = []
@@ -124,8 +120,7 @@ array [codebook_codewords_lengths] with brute force method'''
 
         return return_values
 
-    def _Huffman_decode_int_repres(
-            self,
+    def _Huffman_decode_int_repres(self,
             codebook_entries,
             codewords_lengths):
         '''Method decode Huffman tree from [codebook_entries] value and \
@@ -144,15 +139,15 @@ array [codewords_lengths] with int codewords representation method'''
 
         available = [0 for i in range(32)]
         for i in range(1, codewords_lengths[start_entry] + 1):
-            available[i] = 1 << (32 - i)
+            available[i] = 1 << (32 - i);
 
-        for i in range(start_entry + 1, codebook_entries):
+        for i in range(start_entry + 1, codebook_entries):  
             max_available_branch = codewords_lengths[i]
 
             if max_available_branch == -1:
                 yield ''
                 continue
-            while (max_available_branch > 0
+            while (max_available_branch > 0 
                     and available[max_available_branch] == 0):
                 max_available_branch -= 1
             assert 0 < max_available_branch < 32
@@ -162,13 +157,13 @@ array [codewords_lengths] with int codewords representation method'''
 
             codeword = bin(bit_reverse(result))[2:]
             codeword = (''.zfill(codewords_lengths[i] - len(codeword))
-                        + codeword)
+                        + codeword) 
             yield codeword
 
             if (max_available_branch != codewords_lengths[i]):
                 for new_branch in range(
-                        codewords_lengths[i],
-                        max_available_branch,
+                        codewords_lengths[i], 
+                        max_available_branch, 
                         -1):
                     assert available[new_branch] == 0
                     available[new_branch] = result + (1 << (32 - new_branch))

@@ -2,15 +2,13 @@ class CorruptedFileDataError(Exception):
     '''Raised when file data is corrupted'''
     pass
 
-
 class UnexpectedEndOfFileError(CorruptedFileDataError):
     '''Raised when end of file unexpectedly reached while data reading'''
     pass
-
-
+    
 class FileNotAnOggContainerError(Exception):
     '''Raised when input file not an ogg container'''
-    pass
+    pass 
 
 
 class PacketsReader:
@@ -39,7 +37,7 @@ class PacketsReader:
     def close_file(self):
         '''Method closes opened ogg-vorbis file'''
         self.opened_file.close()
-
+        
 # low-level data checks
 
     def _fresh_packet_on_current_page(self):
@@ -85,7 +83,7 @@ beginning of current packet'''
         self._current_packet_data = b''
         self._packet_pages = []
 
-        if (self._capture_pattern_not_on_current_position()
+        if (self._capture_pattern_not_on_current_position() 
                 or not self._fresh_packet_on_current_page()):
             self._move_to_page_beginning_above()
             while not self._fresh_packet_on_current_page():
@@ -117,7 +115,7 @@ the beginning of a page'''
         if self._capture_pattern_not_on_current_position():
             raise CorruptedFileDataError(
                 'Missing ogg capture pattern in the beginning of '
-                'reading page data. Byte position: '
+                'reading page data. Byte position: ' 
                 + str(self.opened_file.tell()))
         temp_ = self.opened_file.read(4)  # capture_pattern
 
