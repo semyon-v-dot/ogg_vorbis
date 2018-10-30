@@ -267,9 +267,7 @@ if __name__ == '__main__':
     except EndOfPacketError:
         print("File data is corrupted")
         sys_exit('End of packet condition unexpectedly triggered')
-    except (FileNotVorbisError, FileNotAnOggContainerError,
-            FileNotFoundError, IsADirectoryError, PermissionError, OSError
-            ) as error_:
+    except Exception as error_:
         sys_exit(error_)
 
     if not (arguments.ident or arguments.comment or arguments.setup):

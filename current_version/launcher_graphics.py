@@ -1,10 +1,12 @@
 from argparse import ArgumentParser
 from subprocess import run as subprocess_run
+from os import path as os_path
 from sys import (
     exit as sys_exit,
     argv as sys_argv,
     executable as sys_executable,
     version_info as sys_version_info)
+from io import BytesIO
 from launcher_console import CURRENT_VERSION
 from tkinter import (
     Tk,
@@ -18,6 +20,14 @@ from tkinter import (
     Label as tk_Label)
 from tkinter.ttk import (
     Notebook as ttk_Notebook)
+from PIL import Image as pil_Image
+from PIL.ImageTk import PhotoImage as pil_PhotoImage
+from vorbis.vorbis_main import (
+    PacketsProcessor, FileNotVorbisError, EndOfPacketError, DataReader)
+from vorbis.ogg import (
+    CorruptedFileDataError,
+    FileNotAnOggContainerError,
+    UnexpectedEndOfFileError)
 from contextlib import redirect_stdout as clib_redirect_stdout
 with clib_redirect_stdout(None):
     from pygame.mixer import (
@@ -25,6 +35,12 @@ with clib_redirect_stdout(None):
         init as pygame_mixer_init,
         music as pygame_music,
         Sound as pygame_Sound)
+
+
+PATH_TEST_IMAGE = os_path.join(
+    os_path.dirname(os_path.abspath(__file__)),
+    'resources',
+    '123.png')
 
 
 class InfoNotebook(ttk_Notebook):
@@ -41,15 +57,49 @@ presented'''
     def _create_tabs(self, coverart_base64_data):
         '''Method creates tabs for notebook'''
         self._coverart_tab = tk_Canvas(master=self)
-        # self._coverart_image =
+        final_image = self._decode_base64_to_bytes(coverart_base64_data)
+        self._coverart_image = pil_PhotoImage(
+            pil_Image.open(BytesIO(final_image)))
+        self._coverart_tab.create_image(
+            (0, 0),
+            image=self._coverart_image,
+            anchor='nw')
+
+        self['width'] = self._coverart_image.width()
+        self['height'] = self._coverart_image.height()
         self.add(self._coverart_tab, text='Coverart')
 
         self._amplitude_tab = tk_Canvas(master=self)
         self.add(self._amplitude_tab, text='Amplitude')
 
-    def _decode_base64_to_file(in_data, out_file):
+    def _decode_base64_to_bytes(self, in_data):
         '''Function decodes base64 data to file'''
-        pass
+        assert isinstance(in_data, bytes)
+
+        out_data = b''
+        bits_buffer = ''
+
+        for byte in in_data:
+            if b'A'[0] <= byte <= b'Z'[0]:
+                bits_buffer += bin(byte - 65)[2:].zfill(6)
+            elif b'a'[0] <= byte <= b'z'[0]:
+                bits_buffer += bin(byte - 71)[2:].zfill(6)
+            elif b'0'[0] <= byte <= b'9'[0]:
+                bits_buffer += bin(byte + 4)[2:].zfill(6)
+            elif bytes([byte]) == b'+':
+                bits_buffer += bin(62)[2:].zfill(6)
+            elif bytes([byte]) == b'/':
+                bits_buffer += bin(63)[2:].zfill(6)
+            else:
+                raise ValueError('base64 decode failed')
+
+            if len(bits_buffer) > 7:
+                out_data += bytes([int(bits_buffer[:8], 2)])
+                bits_buffer = bits_buffer[8:]
+        if bits_buffer != '':
+            out_data += bytes([int(bits_buffer, 2)])
+
+        return out_data
 
 
 class AudioToolbarFrame(tk_Frame):
@@ -206,9 +256,31 @@ if __name__ == '__main__':
     root.rowconfigure(1, weight=0)
     root.columnconfigure(0, weight=1)
 
-    info_notebook = InfoNotebook(b'', master=root, padding=(0, 0))
-    # raw_image = (  # check if present
-    #     packets_processor.logical_streams[0].user_comment_list_strings[-1][9:])
+    try:
+        packets_processor = PacketsProcessor(arguments.filepath)
+        packets_processor.process_headers()
+    except CorruptedFileDataError as corrupted_data_error:
+        print("File data is corrupted")
+
+        if isinstance(corrupted_data_error, UnexpectedEndOfFileError):
+            sys_exit('End of file unexpectedly reached')
+
+        sys_exit(corrupted_data_error)
+    except EndOfPacketError:
+        print("File data is corrupted")
+        sys_exit('End of packet condition unexpectedly triggered')
+    except Exception as error_:
+        sys_exit(error_)
+
+    raw_image = b''
+    if (hasattr(packets_processor.logical_streams[0],  # need to check more
+                'user_comment_list_strings')
+        and packets_processor.logical_streams[0]
+            .user_comment_list_strings[-1].startswith('COVERART')):
+        raw_image = (
+            packets_processor.logical_streams[0]
+            .user_comment_list_strings[-1][9:].encode())
+    info_notebook = InfoNotebook(raw_image, master=root, padding=(0, 0))
 
     toolbar_frame = AudioToolbarFrame(
         master=root,
