@@ -13,20 +13,22 @@ from vorbis.ogg import (
     UnexpectedEndOfFileError)
 
 
-def generate_ident_header(logical_stream):
+def generate_ident_header(logical_stream, explain_needed):
     '''Function generate identification header from input [logical_stream] \
 internal values'''
-    return f'''
+    return ''.join([
+        f'''
 {'-'*8}IDENTIFICATION HEADER INFO:
 
-[audio_channels] = {logical_stream.audio_channels}
-    Number of audio channels
-[audio_sample_rate] = {logical_stream.audio_sample_rate}
-    Value of audio sample rate
-
+[audio_channels] = {logical_stream.audio_channels}\n''',
+        (' ' * 4) + 'Number of audio channels\n' if explain_needed else '',
+        f'''[audio_sample_rate] = {logical_stream.audio_sample_rate}\n''',
+        (' ' * 4) + 'Value of audio sample rate\n' if explain_needed else '',
+        f'''
 [bitrate_maximum] = {logical_stream.bitrate_maximum}
 [bitrate_nominal] = {logical_stream.bitrate_nominal}
-[bitrate_minimum] = {logical_stream.bitrate_minimum}
+[bitrate_minimum] = {logical_stream.bitrate_minimum}''',
+        '''
     About bitrates values (0 means value is unset):
         * All three fields set to the same value implies a fixed rate,
           or tightly bounded, nearly fixed-rate bitstream
@@ -34,30 +36,33 @@ internal values'''
           that averages the nominal bitrate
         * Maximum and or minimum set implies a VBR bitstream
           that obeys the bitrate limits
-        * None set indicates the encoder does not care to speculate.
-
+        * None set indicates the encoder does not care to speculate.'''
+        if explain_needed else '',
+        f'''\n
 [blocksize_0] = {logical_stream.blocksize_0}
-[blocksize_1] = {logical_stream.blocksize_1}
+[blocksize_1] = {logical_stream.blocksize_1}''',
+        '''
     These two values are 2 exponent. They represents blocksizes of vorbis
-    window function\
-'''
+    window function''' if explain_needed else ''])
 
 
-def generate_comment_header(logical_stream):
+def generate_comment_header(logical_stream, explain_needed):
     '''Function generate comment header from input [logical_stream] \
 internal values'''
-    output_ = f'''
+    output_ = ''.join((f'''
 {'-'*8}COMMENT HEADER INFO:
 
 [comment_header_decoding_failed] = \
-{logical_stream.comment_header_decoding_failed}
+{logical_stream.comment_header_decoding_failed}''',
+                       '''
     Indicates if decoder failed while decoding comment header. If 'True' then
     strings below may be damaged, nonsensical at all or just absent.
     Note: strings bigger than 1000 characters will be cut and marked with [...]
-    at the end for convenient look
+    at the end for convenient look''' if explain_needed else '',
+                       '''
 [vendor_string]
     Main comment string. Contains:
-'''
+'''))
 
     output_ += _process_comment_lines(logical_stream, 'vendor_string')
     output_ += '''\
@@ -89,31 +94,35 @@ def _process_comment_lines(logical_stream, lines_name):
     return separator.join(lines) + '\n'
 
 
-def generate_setup_header(logical_stream):  # WIP
+def generate_setup_header(logical_stream, explain_needed):
     '''Function generate setup header from input [logical_stream] \
 internal values'''
-    output_info = f'''
+    output_info = ''.join((f'''
 {'-'*8}SETUP HEADER INFO:
 
-[vorbis_floor_types] = {logical_stream.vorbis_floor_types}
+[vorbis_floor_types] = {logical_stream.vorbis_floor_types}''',
+                           '''
         Vorbis encodes a spectral ’floor’ vector for each PCM channel. This
     vector is a low-resolution representation of the audio spectrum for the
-    given channel in the current frame, generally used akin to a whitening
+    give-n channel in the current frame, generally used akin to a whitening
     filter. It is named a ’floor’ because the Xiph.Org reference encoder has
     historically used it as a unit-baseline for spectral resolution.
         A floor encoding may be of two types. Floor 0 uses a packed LSP
     representation on a dB amplitude scale and Bark frequency scale. Floor 1
     represents the curve as a piecewise linear interpolated representation on
-    a dB amplitude scale and linear frequency scale.
+    a dB amplitude scale and linear frequency scale.'''
+                           if explain_needed else '',
+                           '''
 [vorbis_floor_configurations]:
-    '''
+    '''))
     output_info += f'\n{" "*4}'.join(
         [str(config) for config in
             logical_stream.vorbis_floor_configurations])
 
-    output_info += f'''
+    output_info += ''.join([f'''
 
-[vorbis_residue_types] = {logical_stream.vorbis_residue_types}
+[vorbis_residue_types] = {logical_stream.vorbis_residue_types}''',
+                            '''
         A residue vector represents the fine detail of the audio spectrum of
     one channel in an audio frame after the encoder subtracts the floor curve
     and performs any channel coupling. A residue vector may represent spectral
@@ -124,14 +133,15 @@ internal values'''
     residue vectors into the bitstream packet, and then reconstructs the
     vectors during decode. Vorbis makes use of three different encoding
     variants (numbered 0, 1 and 2) of the same basic vector encoding
-    abstraction.
+    abstraction.''' if explain_needed else '',
+                            '''
 [vorbis_residue_configurations]:
-    '''
+    '''])
     output_info += f'\n{" "*4}'.join(
         [str(config) for config in
             logical_stream.vorbis_residue_configurations])
 
-    output_info += f'''
+    output_info += ''.join([f'''
 
 Mappings:
         A mapping contains a channel coupling description and a list of submaps
@@ -144,14 +154,16 @@ Mappings:
     can be applied not only to all the vectors in a given mode, but also
     specific vectors in a specific mode. Each submap specifies the proper
     floor and residue instance number to use for decoding that submap’s
-    spectral floor and spectral residue vectors.
+    spectral floor and spectral residue vectors.'''
+                            if explain_needed else '\n',
+                            '''
 [vorbis_mapping_configurations]:
-    '''
+    '''])
     output_info += f'\n{" "*4}'.join(
         [str(config) for config in
             logical_stream.vorbis_mapping_configurations])
 
-    output_info += f'''
+    output_info += ''.join([f'''
 
 Modes:
         Each Vorbis frame is coded according to a master ’mode’.
@@ -165,9 +177,10 @@ Modes:
     (always 0, the Vorbis window, in Vorbis I), transform type (always type 0,
     the MDCT, in Vorbis I) and a mapping number. The mapping number specifies
     which mapping configuration instance to use for low-level packet decode
-    and synthesis.
+    and synthesis.''' if explain_needed else '\n',
+                            '''
 [vorbis_mode_configurations]:
-    '''
+    '''])
     output_info += f'\n{" "*4}'.join(
         [' '.join([str(i) + ')',
                    'vorbis_mode_blockflag', '=', str(config[0]),
@@ -181,16 +194,19 @@ Modes:
 CURRENT_VERSION = 'ogg_vorbis 4'
 PRINT_HEADER = {
     'ident':
-        lambda logical_stream: print(generate_ident_header(logical_stream)),
+        lambda logical_stream, explain_needed:
+            print(generate_ident_header(logical_stream, explain_needed)),
     'comment':
-        lambda logical_stream: print(generate_comment_header(logical_stream)),
+        lambda logical_stream, explain_needed:
+            print(generate_comment_header(logical_stream, explain_needed)),
     'setup':
-        lambda logical_stream: print(generate_setup_header(logical_stream))
+        lambda logical_stream, explain_needed:
+            print(generate_setup_header(logical_stream, explain_needed))
 }
 
 
 if __name__ == '__main__':
-    if (sys_version_info.major < 3 
+    if (sys_version_info.major < 3
             or (sys_version_info.major == 3 and sys_version_info.minor < 7)):
         print('Python version 3.7 or upper is required')
         sys_exit(0)
@@ -205,10 +221,13 @@ if __name__ == '__main__':
         help="print program's current version number and exit",
         action='version',
         version=CURRENT_VERSION)
-
     parser.add_argument(
-        '-d', '--debug',
+        '--debug',
         help='start program in debug mode',
+        action='store_true')
+    parser.add_argument(
+        '--explain',
+        help='show explanations in output about headers data',
         action='store_true')
 
     parser.add_argument(
@@ -257,16 +276,16 @@ if __name__ == '__main__':
         arguments.ident = arguments.comment = True
 
     if arguments.ident:
-        PRINT_HEADER['ident'](packets_processor.logical_streams[0])
+        PRINT_HEADER['ident'](
+            packets_processor.logical_streams[0],
+            arguments.explain)
     if arguments.comment:
-        PRINT_HEADER['comment'](packets_processor.logical_streams[0])
+        PRINT_HEADER['comment'](
+            packets_processor.logical_streams[0],
+            arguments.explain)
     if arguments.setup:
-        PRINT_HEADER['setup'](packets_processor.logical_streams[0])
-
-    a = open('123.jpeg', 'wb')
-    image = packets_processor.logical_streams[0].user_comment_list_strings[-1][9:]
-    def send_bit(bit):
-        
+        PRINT_HEADER['setup'](
+            packets_processor.logical_streams[0],
+            arguments.explain)
 
     packets_processor.close_file()
-    

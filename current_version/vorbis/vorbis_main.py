@@ -16,9 +16,10 @@ class EndOfPacketError(Exception):
 
 class DataReader:
     '''Class for low-level data reading'''
-    def __init__(self, filename):
-        self._packets_reader = PacketsReader(filename)
-        self._current_packet = b''
+    def __init__(self, filename=None, data=b''):
+        if filename is not None:
+            self._packets_reader = PacketsReader(filename)
+        self._current_packet = data
         self.byte_pointer = 0
         self.bit_pointer = 0
 
