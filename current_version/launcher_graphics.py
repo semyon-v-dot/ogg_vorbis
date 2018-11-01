@@ -1,13 +1,4 @@
-# built in imports
-from argparse import ArgumentParser
-from subprocess import run as subprocess_run
-from sys import (
-    exit as sys_exit,
-    argv as sys_argv,
-    executable as sys_executable,
-    version_info as sys_version_info)
 # internal imports
-from launcher_console import CURRENT_VERSION
 from vorbis.vorbis_main import (
     PacketsProcessor, FileNotVorbisError, EndOfPacketError, DataReader)
 from vorbis.ogg import (
@@ -15,6 +6,14 @@ from vorbis.ogg import (
     FileNotAnOggContainerError,
     UnexpectedEndOfFileError)
 from ui.graphics_ui import AudioToolbarFrame, InfoNotebook
+from launcher_console import CURRENT_VERSION
+# built in imports
+from argparse import ArgumentParser
+from subprocess import run as subprocess_run
+from sys import (
+    exit as sys_exit,
+    argv as sys_argv,
+    executable as sys_executable)
 # graphics and music imports
 from tkinter import Tk
 from contextlib import redirect_stdout as clib_redirect_stdout
@@ -25,11 +24,6 @@ with clib_redirect_stdout(None):
 
 
 if __name__ == '__main__':
-    if (sys_version_info.major < 3
-            or (sys_version_info.major == 3 and sys_version_info.minor < 7)):
-        print('Python version 3.7 or upper is required')
-        sys_exit(0)
-
     parser = ArgumentParser(
         description='Process .ogg audiofile with vorbis coding and '
                     'play it',
