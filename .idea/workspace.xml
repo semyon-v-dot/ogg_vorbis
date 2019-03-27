@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectFrameBounds" extendedState="6">
+    <option name="x" value="10" />
+    <option name="y" value="20" />
+    <option name="width" value="1283" />
+    <option name="height" value="728" />
+  </component>
+  <component name="PropertiesComponent">
+    <property name="last_opened_file_path" value="$PROJECT_DIR$" />
+  </component>
+  <component name="SbtLocalSettings">
+    <option name="projectSyncType">
+      <map>
+        <entry key="$USER_HOME$/Desktop/exercises01-master" value="PREVIEW" />
+        <entry key="$PROJECT_DIR$/../../HW/exercises01" value="PREVIEW" />
+        <entry key="$PROJECT_DIR$/../../scala/lection02-master/lection02-master/practice" value="PREVIEW" />
+        <entry key="$PROJECT_DIR$/../../scala/lection02-master/practice" value="PREVIEW" />
+      </map>
+    </option>
+  </component>
+</project>
