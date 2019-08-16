@@ -1,8 +1,7 @@
 from os import path as os_path
-from unittest import (
-    main as unittest_main,
-    TestCase as unittest_TestCase)
-import pathmagic
+from unittest import TestCase
+
+import tests.__init__  # Without this anytask won't see tests
 from vorbis.ogg import PacketsReader
 
 
@@ -12,18 +11,21 @@ PATH_ORDINARY_TEST_1 = os_path.join(
     'test_1.ogg')
 
 
-class PacketReadingTest(unittest_TestCase):
-    def test_correct_filename(self):
+class PacketReadingTest(TestCase):
+    @staticmethod
+    def test_correct_filename():
         packets_reader = PacketsReader(PATH_ORDINARY_TEST_1)
         packets_reader.close_file()
 
-    def test_read_packet(self):
+    @staticmethod
+    def test_read_packet():
         packets_reader = PacketsReader(PATH_ORDINARY_TEST_1)
         packets_reader.read_packet()
 
         packets_reader.close_file()
 
-    def test_pages_consistency(self):
+    @staticmethod
+    def test_pages_consistency():
         packets_reader = PacketsReader(PATH_ORDINARY_TEST_1)
 
         current_page = 0
@@ -39,7 +41,8 @@ class PacketReadingTest(unittest_TestCase):
 
         packets_reader.close_file()
 
-    def test_moving_byte_pointer(self):
+    @staticmethod
+    def test_moving_byte_pointer():
         packets_reader = PacketsReader(PATH_ORDINARY_TEST_1)
         packets_reader.move_byte_position(352363)
 
@@ -55,7 +58,3 @@ class PacketReadingTest(unittest_TestCase):
             assert str(raised_error) == 'File end reached'
 
         packets_reader.close_file()
-
-
-if __name__ == '__main__':
-    unittest_main()

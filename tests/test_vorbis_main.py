@@ -1,9 +1,9 @@
-from unittest import (
-    main as unittest_main,
-    TestCase as unittest_TestCase)
+from unittest import TestCase
 from os import path as os_path
-import pathmagic
-from vorbis.vorbis_main import DataReader, EndOfPacketError, PacketsProcessor
+
+import tests.__init__  # Without this anytask won't see tests
+from vorbis.vorbis_main import (
+    DataReader, EndOfPacketException, PacketsProcessor)
 from vorbis.helper_funcs import (
     ilog, lookup1_values, float32_unpack, bit_reverse)
 
@@ -14,41 +14,43 @@ PATH_ORDINARY_TEST_1 = os_path.join(
     'test_1.ogg')
 
 
-class DataReaderTests(unittest_TestCase):
+class DataReaderTests(TestCase):
     def test_read_some_bytes(self):
         data_reader = DataReader(PATH_ORDINARY_TEST_1)
 
         data_reader._current_packet = b'\x76\x6f\x72\x62\x69\x73'
-        readed_bytes = b''
+        read_bytes = b''
         for i in range(6):
-            readed_bytes += data_reader.read_byte()
+            read_bytes += data_reader.read_byte()
 
-        self.assertEqual(readed_bytes, b'\x76\x6f\x72\x62\x69\x73')
+        self.assertEqual(read_bytes, b'\x76\x6f\x72\x62\x69\x73')
 
-    def test_read_some_extra_bytes(self):
+    @staticmethod
+    def test_read_some_extra_bytes():
         data_reader = DataReader(PATH_ORDINARY_TEST_1)
 
         data_reader._current_packet = b'\x76\x6f\x72\x62\x69\x73'
         try:
             for i in range(7):
                 data_reader.read_byte()
-        except EndOfPacketError:
+        except EndOfPacketException:
             pass
 
     def test_read_some_bits(self):
         data_reader = DataReader(PATH_ORDINARY_TEST_1)
 
         data_reader._current_packet = b'\x76\x6f\x72'
-        readed_bits = ""
+        read_bits = ""
         for i in range(3):
             bits_in_byte = ""
             for j in range(8):
                 bits_in_byte += str(data_reader.read_bit())
-            readed_bits += bits_in_byte[::-1]
+            read_bits += bits_in_byte[::-1]
 
-        self.assertEqual(readed_bits, "011101100110111101110010")
+        self.assertEqual(read_bits, "011101100110111101110010")
 
-    def test_read_some_extra_bits(self):
+    @staticmethod
+    def test_read_some_extra_bits():
         data_reader = DataReader(PATH_ORDINARY_TEST_1)
 
         try:
@@ -56,7 +58,7 @@ class DataReaderTests(unittest_TestCase):
             for i in range(4):
                 for j in range(8):
                     data_reader.read_bit()
-        except EndOfPacketError:
+        except EndOfPacketException:
             pass
 
     def test_read_bits_for_unsigned_int(self):
@@ -79,7 +81,7 @@ class DataReaderTests(unittest_TestCase):
             data_reader.read_bits_for_int(5, signed=True), -11)
 
 
-class HelperFunctionsTests(unittest_TestCase):
+class HelperFunctionsTests(TestCase):
     def test_ilog(self):
         self.assertEqual(ilog(0), 0)
         self.assertEqual(ilog(1), 1)
@@ -90,23 +92,27 @@ class HelperFunctionsTests(unittest_TestCase):
         self.assertEqual(lookup1_values(50, 3), 3)
         self.assertEqual(lookup1_values(1, 3), 1)
 
-    def test_float32_unpack(self):
+    @staticmethod
+    def test_float32_unpack():
         assert float32_unpack(0x60A03250) == (12880 * pow(2, -15))
         assert float32_unpack(0xE0A03250) == -(12880 * pow(2, -15))
 
-    def test_bit_reverse(self):
+    @staticmethod
+    def test_bit_reverse():
         assert bit_reverse(1879048192) == 14
         assert bit_reverse(64424509440) == 0
         assert bit_reverse(48) == 201326592
 
 
-class PacketsProcessorTests(unittest_TestCase):
-    def test_process_headers(self):
+class PacketsProcessorTests(TestCase):
+    @staticmethod
+    def test_process_headers():
         packets_processor = PacketsProcessor(PATH_ORDINARY_TEST_1)
 
         packets_processor.process_headers()
 
-    def test_ident_header_processing(self):
+    @staticmethod
+    def test_ident_header_processing():
         packets_processor = PacketsProcessor(PATH_ORDINARY_TEST_1)
 
         packets_processor._data_reader.read_packet()
@@ -133,7 +139,3 @@ class PacketsProcessorTests(unittest_TestCase):
         assert logical_stream.bitrate_minimum == 0
         assert logical_stream.blocksize_0 == 8
         assert logical_stream.blocksize_1 == 11
-
-
-if __name__ == '__main__':
-    unittest_main()
