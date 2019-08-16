@@ -1,17 +1,19 @@
 from functools import wraps as functools_wraps
+from typing import Callable
 
 
-def shorter_attribute_creation(func):
-    '''Decorator shorten function attributes creation'''
+def shorter_attribute_creation(func: Callable):
+    """Decorator shorten function attributes creation"""
     @functools_wraps(func)
     def wrapped(*args, **kwargs):
         return func(wrapped, *args, **kwargs)
     return wrapped
 
 
-def ilog(x):
-    '''Function returns the position number of the highest set bit in the \
-two’s complement integer value [x]'''
+def ilog(x: int) -> int:
+    """Returns number of the highest set bit
+
+    Two’s complement integer value [x] used"""
     if x <= 0:
         return 0
 
@@ -23,10 +25,12 @@ two’s complement integer value [x]'''
     return return_value
 
 
-def float32_unpack(x):
-    '''Method translates the packed binary representation of a Vorbis \
-codebook float value into the representation used \
-by the decoder for floating point numbers'''
+def float32_unpack(x: int) -> int:
+    """Unpacks float32 from Vorbis binary
+
+    Method translates the packed binary representation of a Vorbis codebook
+    float value into the representation used by the decoder for floating
+    point numbers"""
     mantissa = x & 0x1fffff
     sign = x & 0x80000000
     exponent = (x & 0x7fe00000) >> 21
@@ -38,10 +42,12 @@ by the decoder for floating point numbers'''
     return mantissa * pow(2, exponent - 788)
 
 
-def lookup1_values(codebook_entries, codebook_dimensions):
-    '''Function compute the correct length of the value index \
-for a codebook VQ lookup table of lookup type 1'''
-    return_value = 0
+def lookup1_values(codebook_entries: int, codebook_dimensions: int) -> int:
+    """Helper function for lookup table of lookup type 1
+
+    Computes the correct length of the value index for a codebook VQ
+    lookup table of lookup type 1"""
+    return_value: int = 0
 
     while (return_value ** codebook_dimensions) <= codebook_entries:
         return_value += 1
@@ -49,7 +55,7 @@ for a codebook VQ lookup table of lookup type 1'''
     return return_value - 1
 
 
-def bit_reverse(n):
+def bit_reverse(n: int) -> int:
     assert n >= 0
 
     n = ((n & 0xAAAAAAAA) >> 1) | ((n & 0x55555555) << 1)
