@@ -1,4 +1,4 @@
-from typing import List, BinaryIO
+from typing import List, BinaryIO, Tuple
 
 
 class CorruptedFileDataError(Exception):
@@ -19,7 +19,7 @@ class PacketsReader:
     _packet_pages: List[int] = []
     _last_page: int = -1
 
-    def __init__(self, filename):
+    def __init__(self, filename: str):
         # This line can cause OSError raising. Occurred exception should be
         # caught by outer code
         self.opened_file = open(filename, 'rb')
@@ -28,7 +28,7 @@ class PacketsReader:
             raise CorruptedFileDataError(
                 'File not an ogg container: ' + filename)
 
-    def read_packet(self):
+    def read_packet(self) -> Tuple[bytes, List[int]]:
         """Method returns packet data and packet pages"""
         if not self._ogg_capture_pattern_on_current_position():
             self._move_to_page_beginning_above()
@@ -49,7 +49,7 @@ class PacketsReader:
 
         return self._current_packet_data, self._packet_pages
 
-    def _read_page_data(self):
+    def _read_page_data(self) -> bytes:
         """Method returns packet data of single page"""
         if not self._ogg_capture_pattern_on_current_position():
             raise CorruptedFileDataError(
@@ -111,7 +111,7 @@ class PacketsReader:
         self._packet_pages.clear()
         self._current_packet_data = b''
 
-    def _last_page_of_logical_bitstream_reached(self):
+    def _last_page_of_logical_bitstream_reached(self) -> bool:
         """Method returns True if fresh packet is on current page"""
         if not self._ogg_capture_pattern_on_current_position():
             raise CorruptedFileDataError(
@@ -138,8 +138,7 @@ class PacketsReader:
         Moves byte pointer to [new_position]. In case if [new_position] is
         not a beginning of a packet, method moves byte pointer up until some
         packet beginning is reached"""
-        if new_position < 0:
-            raise ValueError("Got negative byte position")
+        assert new_position >= 0
 
         self.opened_file.seek(new_position)
         self._current_packet_data = b''
@@ -170,7 +169,7 @@ class PacketsReader:
                     "Capture pattern is missing at the beginning of the file")
             self.opened_file.seek(-1, 1)
 
-    def _fresh_packet_on_current_page(self):
+    def _fresh_packet_on_current_page(self) -> bool:
         """Method returns True if fresh packet is on current page"""
         if not self._ogg_capture_pattern_on_current_position():
             raise CorruptedFileDataError(
@@ -191,7 +190,7 @@ class PacketsReader:
 
         return (header_type_flag & 1) == 0
 
-    def _ogg_capture_pattern_on_current_position(self):
+    def _ogg_capture_pattern_on_current_position(self) -> bool:
         """Checks if capture pattern not on current position
 
         Returns True if page capture pattern not presented on current byte
