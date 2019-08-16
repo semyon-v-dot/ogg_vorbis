@@ -1,64 +1,58 @@
+from dataclasses import dataclass
+from typing import Optional, List
+
 from .ogg import PacketsReader, CorruptedFileDataError
 from .codebook import CodebookDecoder
 from .helper_funcs import ilog
-from dataclasses import dataclass
 
 
-class FileNotVorbisError(Exception):
-    '''Raise when given file has not vorbis format'''
-    pass
-
-
-class EndOfPacketError(Exception):
-    '''Raised when end-of-packet condition triggered'''
+class EndOfPacketException(Exception):
+    """Raised when end-of-packet condition triggered"""
     pass
 
 
 class DataReader:
-    '''Class for low-level data reading'''
-    def __init__(self, filename=None, data=b''):
+    """Class for low-level data reading"""
+    _current_packet: bytes
+    byte_pointer: int = 0
+    bit_pointer: int = 0
+
+    def __init__(self, filename: Optional[str] = None, data: bytes = b''):
         if filename is not None:
             self._packets_reader = PacketsReader(filename)
         self._current_packet = data
-        self.byte_pointer = 0
-        self.bit_pointer = 0
 
     def close_file(self):
-        '''Method closes opened ogg-vorbis file'''
+        """Method closes opened ogg-vorbis file"""
         self._packets_reader.close_file()
 
-# working with global reading position
-
     def restart_file_reading(self):
-        '''Method resets file and packet pointers as at the start of the file \
-reading'''
+        """Resets file and packet pointers to zero"""
         self.set_global_position(0)
         self._current_packet = b''
         self.byte_pointer = 0
         self.bit_pointer = 0
 
-    def set_global_position(self, new_position):
-        '''Method moves global position of [byte_pointer] in audiofile'''
+    def set_global_position(self, new_position: int):
+        """Method moves global position of [byte_pointer] in audio file"""
         self._packets_reader.move_byte_position(new_position)
 
     def get_global_position(self):
-        '''Method returns global position of [byte_pointer] in audiofile'''
+        """Method returns global position of [byte_pointer] in audio file"""
         return self._packets_reader.opened_file.tell()
 
-# basic level reading
-
     def read_packet(self):
-        '''Method reads packet from [packets_reader]'''
+        """Method reads packet from [packets_reader]"""
         self._current_packet = self._packets_reader.read_packet()[0]
         self.byte_pointer = self.bit_pointer = 0
 
-    def read_bit(self):
-        '''Method reads and return one bit from current packet data'''
+    def read_bit(self) -> int:
+        """Method reads and return one bit from current packet data"""
         try:
             required_bit = bool(self._current_packet[self.byte_pointer]
                                 & (1 << self.bit_pointer))
         except IndexError:
-            raise EndOfPacketError('End of packet condition triggered')
+            raise EndOfPacketException('End of packet condition triggered')
 
         self.bit_pointer += 1
         if self.bit_pointer == 8:
@@ -67,33 +61,35 @@ reading'''
 
         return int(required_bit)
 
-    def read_bits(self, bits_count):
-        '''Method reads and return several bits from current packet data'''
+    def read_bits(self, bits_count: int) -> str:
+        """Method reads and return several bits from current packet data"""
         assert bits_count >= 0
 
-        readed_bits = ''
+        read_bits = ''
         for i in range(bits_count):
-            readed_bits = str(self.read_bit()) + readed_bits
+            read_bits = str(self.read_bit()) + read_bits
 
-        return readed_bits
+        return read_bits
 
-    def read_byte(self):
-        '''Method reads and return one byte from current packet'''
+    def read_byte(self) -> bytes:
+        """Method reads and return one byte from current packet"""
         return bytes([self.read_bits_for_int(8)])
 
-    def read_bytes(self, bytes_count):
-        '''Method reads and return several bytes from current packet'''
+    def read_bytes(self, bytes_count: int) -> bytes:
+        """Method reads and return several bytes from current packet"""
         assert bytes_count >= 0
 
-        readed_bytes = b''
+        read_bytes = b''
         for i in range(bytes_count):
-            readed_bytes += self.read_byte()
+            read_bytes += self.read_byte()
 
-        return readed_bytes
+        return read_bytes
 
-    def read_bits_for_int(self, bits_count, signed=False):
-        '''Method reads [bits_count] bits from current packet and return \
-unsigned int value'''
+    def read_bits_for_int(self, bits_count: int, signed: bool = False) -> int:
+        """Reads bits from current packet for int value
+
+        Reads [bits_count] bits from current packet and return unsigned int
+        value"""
         assert bits_count >= 0
 
         number = self.read_bits(bits_count)
@@ -103,11 +99,11 @@ unsigned int value'''
         else:
             number = int(number, 2) - 1
             return -(number
-                     ^ int(''.join(['1' for i in range(bits_count)]), 2))
+                     ^ int(''.join(['1'] * bits_count), 2))
 
 
 class PacketsProcessor:
-    '''Class for processing packets of vorbis bitstream'''
+    """Class for processing packets of vorbis bitstream"""
     def __init__(self, filename):
         self._data_reader = DataReader(filename)
 
@@ -124,61 +120,55 @@ class PacketsProcessor:
         self.logical_streams = []
 
     def _basic_file_format_check(self, filename):
-        '''Method on a basic level checks if given file is ogg vorbis format'''
+        """Method on a basic level checks if given file is ogg vorbis format"""
         try:
             for i in range(3):
                 self._data_reader.read_packet()
                 self._read_byte()
                 self._check_header_sync_pattern()
-        except EndOfPacketError:
-            raise FileNotVorbisError(
+        except EndOfPacketException:
+            raise CorruptedFileDataError(
                 "File format is not vorbis: " + filename)
 
         self._data_reader.restart_file_reading()
 
     def close_file(self):
-        '''Method closes opened ogg-vorbis file'''
+        """Method closes opened ogg-vorbis file"""
         self._data_reader.close_file()
 
 # headers processing
 
     @dataclass
     class LogicalStream:
-        '''Class contain logical stream info'''
-        # # # __init__:
-        #
-        # byte_position
-        #
-        # # # Identification header:
-        #
-        # audio_channels
-        # audio_sample_rate
-        # bitrate_maximum
-        # bitrate_nominal
-        # bitrate_minimum
-        # blocksize_0
-        # blocksize_1
-        #
-        # # # Comment header:
-        #
-        # comment_header_decoding_failed
-        # vendor_string
-        # user_comment_list_strings
-        #
-        # # # Setup header:
-        #
-        # vorbis_codebook_configurations
-        # vorbis_floor_types
-        # vorbis_floor_configurations
-        # vorbis_residue_types
-        # vorbis_residue_configurations
-        # vorbis_mapping_configurations
-        # vorbis_mode_configurations
-        #
+        """Contains logical stream info"""
+        # __init__
         byte_position: int
 
+        # Identification header
+        audio_channels: Optional[int] = None
+        audio_sample_rate: Optional[int] = None
+        bitrate_maximum: Optional[int] = None
+        bitrate_nominal: Optional[int] = None
+        bitrate_minimum: Optional[int] = None
+        blocksize_0: Optional[int] = None
+        blocksize_1: Optional[int] = None
+
+        # Comment header
+        comment_header_decoding_failed: Optional[bool] = None
+        vendor_string: Optional[str] = None
+        user_comment_list_strings: Optional[List[str]] = None
+
+        # Setup header
+        # vorbis_codebook_configurations # TODO: Type
+        vorbis_floor_types: Optional[List[int]] = None
+        # vorbis_floor_configurations # TODO: Type
+        vorbis_residue_types: Optional[List[int]] = None
+        # vorbis_residue_configurations # TODO: Type
+        # vorbis_mapping_configurations # TODO: Type
+        # vorbis_mode_configurations # TODO: Type
+
     def _check_header_sync_pattern(self):
-        '''Method checks if there is a header sync pattern in packet data'''
+        """Method checks if there is a header sync pattern in packet data"""
         pattern = self._read_bytes(6)
 
         if pattern != b'\x76\x6f\x72\x62\x69\x73':
@@ -186,8 +176,10 @@ class PacketsProcessor:
                 'Header sync pattern is absent')
 
     def _process_identification_header(self):
-        '''Method process identification header storing info in appropriate \
-[logical_stream] object'''
+        """Processes identification header
+
+        Stores info in appropriate [logical_stream] object from identification
+        header"""
         self._check_header_sync_pattern()
 
         logical_stream_info = (
@@ -238,8 +230,8 @@ class PacketsProcessor:
                 + logical_stream_info)
 
     def _process_comment_header(self):
-        '''Method process comment header storing info in appropriate \
-[logical_stream] object'''
+        """Method process comment header storing info in appropriate \
+[logical_stream] object"""
         self._check_header_sync_pattern()
 
         vendor_length = self._read_bits_for_int(32)
@@ -270,8 +262,8 @@ class PacketsProcessor:
     # floor decoding # start
 
     @dataclass
-    class FloorData:  # pragma: no cover
-        '''Class for storing floor data'''
+    class FloorData:
+        """Class for storing floor data"""
         floor1_partition_class_list: list
         floor1_class_dimensions: list
         floor1_class_subclasses: list
@@ -281,7 +273,7 @@ class PacketsProcessor:
         floor1_X_list: list
 
     def _decode_floor_config_type_1(self):
-        '''Method decodes floor configuration type 1'''
+        """Method decodes floor configuration type 1"""
         current_stream = self.logical_streams[-1]
 
         floor1_partitions = self._read_bits_for_int(5)
@@ -322,26 +314,24 @@ class PacketsProcessor:
                         + str(floor1_subclass_books[i]))
 
         floor1_multiplier = self._read_bits_for_int(2) + 1
-        rangebits = self._read_bits_for_int(4)
-        floor1_X_list = []
-        floor1_X_list.append(0)
-        floor1_X_list.append(1 << rangebits)
+        range_bits = self._read_bits_for_int(4)
+        floor1_x_list = [0, 1 << range_bits]
         # floor1_values = 2
         for i in range(floor1_partitions):
             current_class_number = floor1_partition_class_list[i]
 
             for j in range(floor1_class_dimensions[current_class_number]):
-                floor1_X_list.append(
-                    self._read_bits_for_int(rangebits))
+                floor1_x_list.append(
+                    self._read_bits_for_int(range_bits))
                 # floor1_values += 1
-        if len(floor1_X_list) > 65:
+        if len(floor1_x_list) > 65:
             raise CorruptedFileDataError(
                 '[floor1_X_list] have more than 65 elements while floor '
                 'config decoding')
-        if len(floor1_X_list) != len(set(floor1_X_list)):
+        if len(floor1_x_list) != len(set(floor1_x_list)):
             raise CorruptedFileDataError(
                 '[floor1_X_list] have non unique elements while floor '
-                'config decoding: ' + str(floor1_X_list))
+                'config decoding: ' + str(floor1_x_list))
 
         return self.FloorData(
             floor1_partition_class_list,
@@ -350,14 +340,14 @@ class PacketsProcessor:
             floor1_class_masterbooks,
             floor1_subclass_books,
             floor1_multiplier,
-            floor1_X_list)
+            floor1_x_list)
 
     def _decode_floor_config_type_0(self):  # pragma: no cover # WIP
-        '''Method decodes floor configuration type 0'''
+        """Method decodes floor configuration type 0"""
         raise NotImplementedError()
 
     def _process_floors(self):
-        '''Method processes floors for current logical bitstream'''
+        """Method processes floors for current logical bitstream"""
         current_stream = self.logical_streams[-1]
 
         vorbis_floor_count = self._read_bits_for_int(6) + 1
@@ -382,7 +372,7 @@ class PacketsProcessor:
 
     @dataclass
     class ResidueData:  # pragma: no cover
-        '''Class for storing residue data'''
+        """Class for storing residue data"""
         residue_begin: int
         residue_end: int
         residue_partition_size: int
@@ -392,7 +382,7 @@ class PacketsProcessor:
         residue_books: list
 
     def _decode_residue_config(self):  # A bit of unclear code
-        '''Method decodes residue configuration'''
+        """Method decodes residue configuration"""
         current_stream = self.logical_streams[-1]
 
         residue_begin = self._read_bits_for_int(24)
@@ -456,7 +446,7 @@ class PacketsProcessor:
             residue_books)
 
     def _process_residues(self):
-        '''Method processes residues for current logical bitstream'''
+        """Method processes residues for current logical bitstream"""
         current_stream = self.logical_streams[-1]
 
         vorbis_residue_count = self._read_bits_for_int(6) + 1
@@ -478,7 +468,7 @@ class PacketsProcessor:
 
     @dataclass
     class MappingData:  # pragma: no cover
-        '''Class for storing mapping data'''
+        """Class for storing mapping data"""
         vorbis_mapping_submaps: int
         vorbis_mapping_coupling_steps: int
         vorbis_mapping_magnitude: list
@@ -488,7 +478,7 @@ class PacketsProcessor:
         vorbis_mapping_submap_residue: list
 
     def _process_mappings(self):
-        '''Method processes mappings for current logical bitstream'''
+        """Method processes mappings for current logical bitstream"""
         current_stream = self.logical_streams[-1]
 
         vorbis_mapping_count = self._read_bits_for_int(6) + 1
@@ -568,9 +558,10 @@ class PacketsProcessor:
 
     # mapping decoding # end
 
-    def _process_setup_header(self):  # WIP
-        '''Method process setup header storing info in appropriate \
-[logical_stream] object'''
+    # TODO
+    def _process_setup_header(self):
+        """Method process setup header storing info in appropriate \
+[logical_stream] object"""
         self._check_header_sync_pattern()
         current_stream = self.logical_streams[-1]
 
@@ -623,8 +614,8 @@ class PacketsProcessor:
                 'Framing bit lost while setup header decoding')
 
     def process_headers(self):
-        '''Method process headers in whole file creating [logical_stream] \
-objects'''
+        """Method process headers in whole file creating [logical_stream] \
+objects"""
         try:
             self._data_reader.read_packet()
             packet_type = self._read_byte()
@@ -636,7 +627,7 @@ objects'''
                         'Identification header is lost')
                 try:
                     self._process_identification_header()
-                except EndOfPacketError:
+                except EndOfPacketException:
                     raise CorruptedFileDataError(
                         'End of packet condition triggered while '
                         'identification header decoding')
@@ -649,7 +640,7 @@ objects'''
                     False
                 try:
                     self._process_comment_header()
-                except EndOfPacketError:
+                except EndOfPacketException:
                     self.logical_streams[-1].comment_header_decoding_failed =\
                         True
 
@@ -659,7 +650,7 @@ objects'''
                     raise CorruptedFileDataError('Setup header is lost')
                 try:
                     self._process_setup_header()
-                except EndOfPacketError:
+                except EndOfPacketException:
                     raise CorruptedFileDataError(
                         'End of packet condition triggered while '
                         'setup header decoding')
