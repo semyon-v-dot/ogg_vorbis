@@ -1,6 +1,11 @@
+from configparser import ConfigParser
+from sys import exit as sys_exit
+from typing import Optional
+
+
 def generate_ident_header(logical_stream, explain_needed):
-    '''Function generate identification header from input [logical_stream] \
-internal values'''
+    """Function generate identification header from input [logical_stream] \
+internal values"""
     return ''.join([
         f'''
 {'-'*8}IDENTIFICATION HEADER INFO:
@@ -32,8 +37,8 @@ internal values'''
 
 
 def generate_comment_header(logical_stream, explain_needed):
-    '''Function generate comment header from input [logical_stream] \
-internal values'''
+    """Function generate comment header from input [logical_stream] \
+internal values"""
     output_ = ''.join((f'''
 {'-'*8}COMMENT HEADER INFO:
 
@@ -61,7 +66,7 @@ internal values'''
 
 
 def _process_comment_lines(logical_stream, lines_name):
-    '''Function process comment lines into readable state'''
+    """Function process comment lines into readable state"""
     if len(getattr(logical_stream, lines_name, [])) == 0:
         return "        Nothing. String(s) is(are) absent\n"
 
@@ -80,8 +85,8 @@ def _process_comment_lines(logical_stream, lines_name):
 
 
 def generate_setup_header(logical_stream, explain_needed):
-    '''Function generate setup header from input [logical_stream] \
-internal values'''
+    """Function generate setup header from input [logical_stream] \
+internal values"""
     output_info = ''.join((f'''
 {'-'*8}SETUP HEADER INFO:
 
@@ -158,7 +163,7 @@ Modes:
     suited to that frame. Different modes are, e.g. how frame size is changed
     from frame to frame. The mode number of a frame serves as a top level
     configuration switch for all other specific aspects of frame decode.
-        A ’mode’ configuration consists of a frame size setting, window type
+       A ’mode’ configuration consists of a frame size setting, window type
     (always 0, the Vorbis window, in Vorbis I), transform type (always type 0,
     the MDCT, in Vorbis I) and a mapping number. The mapping number specifies
     which mapping configuration instance to use for low-level packet decode
@@ -174,3 +179,31 @@ Modes:
                 logical_stream.vorbis_mode_configurations)])
 
     return output_info
+
+
+def get_current_version() -> Optional[str]:
+    """Gives current version str
+
+    Gives version based on 'data.ini' in current folder. If data is
+    corrupted then None returned"""
+    config: ConfigParser = ConfigParser()
+    try:
+        config.read('data.ini')
+    except OSError:
+        raise OSError('Cannot read "data.ini" file')
+
+    if 'VERSION' not in config or 'current_version' not in config['VERSION']:
+        return None
+    else:
+        return config['VERSION']['current_version']
+
+
+def exit_with_exception(info_for_user: str, input_exception: Exception):
+    """Exits with exception
+
+    Prints info to stdout for user and to stderr for debugging. Instead of
+    error codes, error strings are used"""
+    print(info_for_user)
+    sys_exit(input_exception.__name__ + ": " + str(input_exception))
+
+
