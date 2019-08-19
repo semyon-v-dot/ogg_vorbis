@@ -54,12 +54,7 @@ def init_packets_processor(filepath: str) -> PacketsProcessor:
             'File handling is impossible: ' + arguments.filepath,
             occurred_exc)
 
-    except CorruptedFileDataError as occurred_exc:
-        exit_with_exception(
-            "File data is corrupted",
-            occurred_exc)
-
-    except EndOfPacketException as occurred_exc:
+    except (CorruptedFileDataError, EndOfPacketException) as occurred_exc:
         exit_with_exception(
             "File data is corrupted",
             occurred_exc)
@@ -81,10 +76,10 @@ if __name__ == '__main__':
     _CURRENT_VERSION: Optional[str] = None
     try:
         _CURRENT_VERSION = get_current_version()
-    except OSError as occurred_exc:
+    except OSError as occurred_exc_:
         exit_with_exception(
             'Cannot read "data.ini" file',
-            occurred_exc)
+            occurred_exc_)
 
     if _CURRENT_VERSION is None:
         exit_with_exception(
@@ -138,17 +133,17 @@ if __name__ == '__main__':
     if not (arguments.ident or arguments.comment or arguments.setup):
         arguments.ident = arguments.comment = True
 
-    if arguments.ident:
-        _PRINT_HEADER_SWITCH['ident'](
-            packets_processor.logical_streams[0],
-            arguments.explain)
-    if arguments.comment:
-        _PRINT_HEADER_SWITCH['comment'](
-            packets_processor.logical_streams[0],
-            arguments.explain)
-    if arguments.setup:
-        _PRINT_HEADER_SWITCH['setup'](
-            packets_processor.logical_streams[0],
-            arguments.explain)
+    # if arguments.ident:
+    #     _PRINT_HEADER_SWITCH['ident'](
+    #         packets_processor.logical_streams[0],
+    #         arguments.explain)
+    # if arguments.comment:
+    #     _PRINT_HEADER_SWITCH['comment'](
+    #         packets_processor.logical_streams[0],
+    #         arguments.explain)
+    # if arguments.setup:
+    #     _PRINT_HEADER_SWITCH['setup'](
+    #         packets_processor.logical_streams[0],
+    #         arguments.explain)
 
     packets_processor.close_file()
