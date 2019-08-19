@@ -202,8 +202,9 @@ def exit_with_exception(info_for_user: str, input_exception: Exception):
     """Exits with exception
 
     Prints info to stdout for user and to stderr for debugging. Instead of
-    error codes, error strings are used"""
+    error codes, 'error strings' are used. 'Error strings' have format:
+    (exception name) + ': ' + (exception args)"""
     print(info_for_user)
-    sys_exit(input_exception.__name__ + ": " + str(input_exception))
+    sys_exit(input_exception.__class__.__name__ + ": " + str(input_exception))
 
 
