@@ -1,7 +1,12 @@
 from typing import List, BinaryIO, Tuple
 
 
-class CorruptedFileDataError(Exception):
+class FileDataException(Exception):
+    """Root for all ogg_vorbis.py exceptions and errors"""
+    pass
+
+
+class CorruptedFileDataError(FileDataException):
     """Raises when file data is corrupted"""
     pass
 
