@@ -1,15 +1,3 @@
-from functools import wraps as functools_wraps
-from typing import Callable
-
-
-def shorter_attribute_creation(func: Callable):
-    """Decorator shorten function attributes creation"""
-    @functools_wraps(func)
-    def wrapped(*args, **kwargs):
-        return func(wrapped, *args, **kwargs)
-    return wrapped
-
-
 def ilog(x: int) -> int:
     """Returns number of the highest set bit
 
@@ -25,7 +13,7 @@ def ilog(x: int) -> int:
     return return_value
 
 
-def float32_unpack(x: int) -> int:
+def float32_unpack(x: int) -> float:
     """Unpacks float32 from Vorbis binary
 
     Method translates the packed binary representation of a Vorbis codebook
@@ -34,9 +22,10 @@ def float32_unpack(x: int) -> int:
     mantissa = x & 0x1fffff
     sign = x & 0x80000000
     exponent = (x & 0x7fe00000) >> 21
+
     assert sign >= 0 and mantissa >= 0 and exponent >= 0
 
-    if sign:
+    if sign != 0:
         mantissa *= -1
 
     return mantissa * pow(2, exponent - 788)
@@ -56,6 +45,7 @@ def lookup1_values(codebook_entries: int, codebook_dimensions: int) -> int:
 
 
 def bit_reverse(n: int) -> int:
+    # TODO: docstring
     assert n >= 0
 
     n = ((n & 0xAAAAAAAA) >> 1) | ((n & 0x55555555) << 1)
