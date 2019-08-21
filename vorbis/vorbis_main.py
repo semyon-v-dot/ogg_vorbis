@@ -255,18 +255,10 @@ class PacketsProcessor(AbstractDecoder):
         current_stream: 'PacketsProcessor.LogicalStream' = (
             self.logical_streams[-1])
 
-        vorbis_version = self._read_bits_for_int(32)  # Line from docs
-
-        if vorbis_version != 0:
-            raise CorruptedFileDataError('Version of Vorbis is zero')
+        vorbis_version = self._read_bits_for_int(32)
 
         current_stream.audio_channels = self._read_bits_for_int(8)
         current_stream.audio_sample_rate = self._read_bits_for_int(32)
-
-        if (current_stream.audio_channels == 0
-                or current_stream.audio_sample_rate == 0):
-            raise CorruptedFileDataError(
-                '[audio_channels] or [audio_sample_rate] equal to zero')
 
         current_stream.bitrate_maximum = (
             self._read_bits_for_int(32, signed=True))
@@ -275,11 +267,21 @@ class PacketsProcessor(AbstractDecoder):
         current_stream.bitrate_minimum = (
             self._read_bits_for_int(32, signed=True))
 
-        # No checks for bitrate are needed because bitrate fields should be
-        # used only as hints
-
         current_stream.blocksize_0 = 1 << self._read_bits_for_int(4)
         current_stream.blocksize_1 = 1 << self._read_bits_for_int(4)
+
+        framing_flag: int = self._read_bit()
+
+        if vorbis_version != 0:
+            raise CorruptedFileDataError('Version of Vorbis is zero')
+
+        if (current_stream.audio_channels == 0
+                or current_stream.audio_sample_rate == 0):
+            raise CorruptedFileDataError(
+                '[audio_channels] or [audio_sample_rate] equal to zero')
+
+        # No checks for bitrate are needed because bitrate fields should be
+        # used only as hints
 
         if current_stream.blocksize_0 > current_stream.blocksize_1:
             raise CorruptedFileDataError(
@@ -294,7 +296,7 @@ class PacketsProcessor(AbstractDecoder):
             raise CorruptedFileDataError(
                 '[blocksize_0] or [blocksize_1] have not allowed values')
 
-        if not bool(self._read_bit()):  # Framing flag check
+        if framing_flag == 0:
             raise CorruptedFileDataError('Framing flag is a zero')
 
     def _process_comment_header(self):
