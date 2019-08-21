@@ -23,9 +23,20 @@ class PacketsProcessor(AbstractDecoder):
 
         audio_channels: int
         audio_sample_rate: int
+
+        # From docs:
+        # "The bitrate fields [...] are used only as hints. [...]
+        # * All three fields set to the same value implies a fixed rate, or
+        # tightly bounded, nearly fixed-rate bitstream
+        # * Only nominal set implies a VBR or ABR stream that averages the
+        # nominal bitrate
+        # * Maximum and or minimum set implies a VBR bitstream that obeys the
+        # bitrate limits
+        # * None set indicates the encoder does not care to speculate"
         bitrate_maximum: int
         bitrate_nominal: int
         bitrate_minimum: int
+
         blocksize_0: int
         blocksize_1: int
 
@@ -264,15 +275,8 @@ class PacketsProcessor(AbstractDecoder):
         current_stream.bitrate_minimum = (
             self._read_bits_for_int(32, signed=True))
 
-        if (
-                current_stream.bitrate_maximum <= 0
-                or
-                current_stream.bitrate_nominal <= 0
-                or
-                current_stream.bitrate_minimum <= 0):
-            raise CorruptedFileDataError(
-                '[bitrate_maximum], [bitrate_nominal] or [bitrate_minimum] '
-                'less than or equal to zero')
+        # No checks for bitrate are needed because bitrate fields should be
+        # used only as hints
 
         current_stream.blocksize_0 = 1 << self._read_bits_for_int(4)
         current_stream.blocksize_1 = 1 << self._read_bits_for_int(4)
