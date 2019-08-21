@@ -264,6 +264,16 @@ class PacketsProcessor(AbstractDecoder):
         current_stream.bitrate_minimum = (
             self._read_bits_for_int(32, signed=True))
 
+        if (
+                current_stream.bitrate_maximum <= 0
+                or
+                current_stream.bitrate_nominal <= 0
+                or
+                current_stream.bitrate_minimum <= 0):
+            raise CorruptedFileDataError(
+                '[bitrate_maximum], [bitrate_nominal] or [bitrate_minimum] '
+                'less than or equal to zero')
+
         current_stream.blocksize_0 = 1 << self._read_bits_for_int(4)
         current_stream.blocksize_1 = 1 << self._read_bits_for_int(4)
 
