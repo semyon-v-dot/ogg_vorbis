@@ -10,98 +10,6 @@ class EndOfPacketException(FileDataException):
     pass
 
 
-class DataReader:
-    """Class for low-level data reading"""
-    _current_packet: bytes
-    byte_pointer: int = 0
-    bit_pointer: int = 0
-
-    def __init__(self, filename: Optional[str] = None, data: bytes = b''):
-        if filename is not None:
-            self._packets_reader = PacketsReader(filename)
-        self._current_packet = data
-
-    def close_file(self):
-        """Method closes opened ogg-vorbis file"""
-        self._packets_reader.close_file()
-
-    def restart_file_reading(self):
-        """Resets file and packet pointers to zero"""
-        self.set_global_position(0)
-        self._current_packet = b''
-        self.byte_pointer = 0
-        self.bit_pointer = 0
-
-    def set_global_position(self, new_position: int):
-        """Method moves global position of [byte_pointer] in audio file"""
-        self._packets_reader.move_byte_position(new_position)
-
-    def get_global_position(self):
-        """Method returns global position of [byte_pointer] in audio file"""
-        return self._packets_reader.opened_file.tell()
-
-    def read_packet(self):
-        """Method reads packet from [packets_reader]"""
-        self._current_packet = self._packets_reader.read_packet()[0]
-        self.byte_pointer = self.bit_pointer = 0
-
-    def read_bit(self) -> int:
-        """Method reads and return one bit from current packet data"""
-        try:
-            required_bit = bool(self._current_packet[self.byte_pointer]
-                                & (1 << self.bit_pointer))
-        except IndexError:
-            raise EndOfPacketException('End of packet condition triggered')
-
-        self.bit_pointer += 1
-        if self.bit_pointer == 8:
-            self.bit_pointer = 0
-            self.byte_pointer += 1
-
-        return int(required_bit)
-
-    def read_bits(self, bits_count: int) -> str:
-        """Method reads and return several bits from current packet data"""
-        assert bits_count >= 0
-
-        read_bits = ''
-        for i in range(bits_count):
-            read_bits = str(self.read_bit()) + read_bits
-
-        return read_bits
-
-    def read_byte(self) -> bytes:
-        """Method reads and return one byte from current packet"""
-        return bytes([self.read_bits_for_int(8)])
-
-    def read_bytes(self, bytes_count: int) -> bytes:
-        """Method reads and return several bytes from current packet"""
-        assert bytes_count >= 0
-
-        read_bytes = b''
-        for i in range(bytes_count):
-            read_bytes += self.read_byte()
-
-        return read_bytes
-
-    def read_bits_for_int(self, bits_count: int,
-                          signed: bool = False) -> int:
-        """Reads bits from current packet for int value
-
-        Reads [bits_count] bits from current packet and return unsigned int
-        value"""
-        assert bits_count >= 0
-
-        number = self.read_bits(bits_count)
-
-        if not signed or number[0] == '0':
-            return int(number, 2)
-        else:
-            number = int(number, 2) - 1
-            return -(number
-                     ^ int(''.join(['1'] * bits_count), 2))
-
-
 class AbstractDecoder:
     """Methods shortcuts for _DataReader methods
 
@@ -114,7 +22,7 @@ class AbstractDecoder:
     _read_byte: Callable[[], bytes]
     _read_bytes: Callable[[int], bytes]
 
-    def __init__(self, data_reader: DataReader):
+    def __init__(self, data_reader: 'DataReader'):
         self._read_bit = data_reader.read_bit
         self._read_bits = data_reader.read_bits
         self._read_bits_for_int = data_reader.read_bits_for_int
@@ -125,6 +33,8 @@ class AbstractDecoder:
 
 class CodebookDecoder(AbstractDecoder):
     """Class represents decoder of vorbis codebooks"""
+    # Fields in this class cannot be moved to related methods as arguments
+    # for refactoring needs. Complexity of code will rise due to such a moving!
 
     @dataclass
     class CodebookData:
@@ -164,7 +74,7 @@ class CodebookDecoder(AbstractDecoder):
     # Acquired from vq lookup table unpacking
     _VQ_lookup_table: List[List[float]]
 
-    def __init__(self, data_reader: DataReader):
+    def __init__(self, data_reader: 'DataReader'):
         super().__init__(data_reader)
 
     def read_codebook(self) -> CodebookData:
@@ -429,33 +339,22 @@ class CodebookDecoder(AbstractDecoder):
 
 
 class FloorDecoder(AbstractDecoder):
-    @dataclass
     class FloorData:
         # TODO: Types
         # TODO: Vars explanations
-        floor1_partition_class_list: List[int]
-        floor1_class_dimensions: List
-        floor1_class_subclasses: List
-        floor1_class_masterbooks: List
-        floor1_subclass_books: List
+        floor1_partition_class_list: List[int] = []
+        floor1_class_dimensions: List[int] = []
+        floor1_class_subclasses: List[int] = []
+        floor1_class_masterbooks: List[int] = []
+        floor1_subclass_books: List[List[int]] = []
         floor1_multiplier: int
-        floor1_X_list: List
+        floor1_x_list: List[int] = []
 
-    # TODO: Types
-    # TODO: Vars explanations
-    _floor1_partition_class_list: List[int]
-    _floor1_class_dimensions: List
-    _floor1_class_subclasses: List
-    _floor1_class_masterbooks: List
-    _floor1_subclass_books: List
-    _floor1_multiplier: int
-    _floor1_X_list: List
-
-    def __init__(self, data_reader: DataReader):
+    def __init__(self, data_reader: 'DataReader'):
         super().__init__(data_reader)
 
     # WouldBeBetter: Check docstring for details
-    def decode_floor_config_type_0(self) -> FloorData:
+    def read_floor_config_type_0(self) -> FloorData:
         """Method decodes floor configuration type 0
 
         From Vorbis I docs:
@@ -465,91 +364,97 @@ class FloorDecoder(AbstractDecoder):
         """
         raise NotImplementedError('Floor 0 decoding')
 
-    def decode_floor_config_type_1(self) -> FloorData:
+    def read_floor_config_type_1(self, codebooks_amount: int) -> FloorData:
         """Method decodes floor configuration type 1"""
         floor1_partitions = self._read_bits_for_int(5)
-        maximum_class = -1  # Line from docs
+        # maximum_class = -1  # Line from docs
+        # '_read_bits_for_int' gives unsigned int values, so min value is 0.
+        # Then no need to include 0 to 'max' function below with
+        # 'maximum_class'
 
-        floor1_partition_class_list = []
+        result_data: 'FloorDecoder.FloorData' = self.FloorData()
+
         for i in range(floor1_partitions):
-            floor1_partition_class_list.append(
+            result_data.floor1_partition_class_list.append(
                 self._read_bits_for_int(4))
 
-        maximum_class = max(self._floor1_partition_class_list)
-        floor1_class_dimensions = []
-        floor1_class_subclasses = []
-        floor1_class_masterbooks = []
-        floor1_subclass_books = []
+        maximum_class = max(result_data.floor1_partition_class_list)
         for i in range(maximum_class + 1):
-            floor1_class_dimensions.append(self._read_bits_for_int(3) + 1)
-            floor1_class_subclasses.append(self._read_bits_for_int(2))
-            if floor1_class_subclasses[i] != 0:
-                floor1_class_masterbooks.append(self._read_bits_for_int(8))
-                if (floor1_class_masterbooks[i]
-                        > len(current_stream.vorbis_codebook_configurations)):
-                    raise CorruptedFileDataError(
-                        'Received incorrect [floor1_class_masterbooks] '
-                        'item while floor config decoding: '
-                        + str(floor1_class_masterbooks[i]))
-            else:
-                floor1_class_masterbooks.append(-1)
+            result_data.floor1_class_dimensions.append(
+                self._read_bits_for_int(3) + 1)
 
-            floor1_subclass_books.append([])
-            for j in range(1 << floor1_class_subclasses[i]):
-                floor1_subclass_books[i].append(self._read_bits_for_int(8) - 1)
-                if (floor1_subclass_books[i][j]
-                        > len(current_stream.vorbis_codebook_configurations)):
+            result_data.floor1_class_subclasses.append(
+                self._read_bits_for_int(2))
+
+            if result_data.floor1_class_subclasses[i] != 0:
+                result_data.floor1_class_masterbooks.append(
+                    self._read_bits_for_int(8))
+
+                if (result_data.floor1_class_masterbooks[i]
+                        > codebooks_amount):  # TODO
+                    raise CorruptedFileDataError(
+                        'Received incorrect [floor1_class_masterbooks] item: '
+                        + str(result_data.floor1_class_masterbooks[i]))
+            else:
+                result_data.floor1_class_masterbooks.append(-1)
+
+            result_data.floor1_subclass_books.append([])
+
+            for j in range(1 << result_data.floor1_class_subclasses[i]):
+                result_data.floor1_subclass_books[i].append(
+                    self._read_bits_for_int(8) - 1)
+
+                if (result_data.floor1_subclass_books[i][j]
+                        > codebooks_amount):  # TODO
                     raise CorruptedFileDataError(
                         'Received incorrect [floor1_subclass_books] '
                         'item while floor config decoding: '
-                        + str(floor1_subclass_books[i]))
+                        + str(result_data.floor1_subclass_books[i]))
 
-        floor1_multiplier = self._read_bits_for_int(2) + 1
+        result_data.floor1_multiplier = self._read_bits_for_int(2) + 1
+
         range_bits = self._read_bits_for_int(4)
-        floor1_x_list = [0, 1 << range_bits]
-        # floor1_values = 2
+        result_data.floor1_x_list = [0, 1 << range_bits]
+        # floor1_values = 2  # Line from docs  # C++ arrays case
+
         for i in range(floor1_partitions):
-            current_class_number = floor1_partition_class_list[i]
+            current_class_number = result_data.floor1_partition_class_list[i]
 
-            for j in range(floor1_class_dimensions[current_class_number]):
-                floor1_x_list.append(
+            for j in range(
+                    result_data.floor1_class_dimensions[current_class_number]):
+                result_data.floor1_x_list.append(
                     self._read_bits_for_int(range_bits))
-                # floor1_values += 1
-        if len(floor1_x_list) > 65:
+                # floor1_values += 1  # Line from docs  # C++ arrays case
+
+        if len(result_data.floor1_x_list) > 65:
             raise CorruptedFileDataError(
-                '[floor1_X_list] have more than 65 elements while floor '
-                'config decoding')
-        if len(floor1_x_list) != len(set(floor1_x_list)):
+                '[floor1_X_list] have more than 65 elements')
+
+        if (len(result_data.floor1_x_list)
+                != len(set(result_data.floor1_x_list))):
             raise CorruptedFileDataError(
-                '[floor1_X_list] have non unique elements while floor '
-                'config decoding: ' + str(floor1_x_list))
+                '[floor1_X_list] have non unique elements '
+                + str(result_data.floor1_x_list))
 
-        return self.FloorData(
-            floor1_partition_class_list,
-            floor1_class_dimensions,
-            floor1_class_subclasses,
-            floor1_class_masterbooks,
-            floor1_subclass_books,
-            floor1_multiplier,
-            floor1_x_list)
+        return result_data
 
 
+# TODO
 class ResidueDecoder(AbstractDecoder):
     """Class for storing residue data"""
-    # TODO
     @dataclass
     class ResidueData:
-        pass
+        # TODO: Types
+        # TODO: Vars explanations
+        residue_begin: int
+        residue_end: int
+        residue_partition_size: int
+        residue_classifications: int
+        residue_classbook: int
+        residue_cascade: list
+        residue_books: list
 
-    _residue_begin: int
-    _residue_end: int
-    _residue_partition_size: int
-    _residue_classifications: int
-    _residue_classbook: int
-    _residue_cascade: list
-    _residue_books: list
-
-    def __init__(self, data_reader: DataReader):
+    def __init__(self, data_reader: 'DataReader'):
         super().__init__(data_reader)
 
     def _process_residues(self):
@@ -635,6 +540,7 @@ class ResidueDecoder(AbstractDecoder):
             residue_books)
 
 
+# TODO
 class MappingDecoder(AbstractDecoder):
     """Class for storing mapping data"""
     # TODO
@@ -731,3 +637,95 @@ class MappingDecoder(AbstractDecoder):
                     vorbis_mapping_mux,
                     vorbis_mapping_submap_floor,
                     vorbis_mapping_submap_residue))
+
+
+class DataReader:
+    """Class for low-level data reading"""
+    _current_packet: bytes
+    byte_pointer: int = 0
+    bit_pointer: int = 0
+
+    def __init__(self, filename: Optional[str] = None, data: bytes = b''):
+        if filename is not None:
+            self._packets_reader = PacketsReader(filename)
+        self._current_packet = data
+
+    def close_file(self):
+        """Method closes opened ogg-vorbis file"""
+        self._packets_reader.close_file()
+
+    def restart_file_reading(self):
+        """Resets file and packet pointers to zero"""
+        self.set_global_position(0)
+        self._current_packet = b''
+        self.byte_pointer = 0
+        self.bit_pointer = 0
+
+    def set_global_position(self, new_position: int):
+        """Method moves global position of [byte_pointer] in audio file"""
+        self._packets_reader.move_byte_position(new_position)
+
+    def get_global_position(self):
+        """Method returns global position of [byte_pointer] in audio file"""
+        return self._packets_reader.opened_file.tell()
+
+    def read_packet(self):
+        """Method reads packet from [packets_reader]"""
+        self._current_packet = self._packets_reader.read_packet()[0]
+        self.byte_pointer = self.bit_pointer = 0
+
+    def read_bit(self) -> int:
+        """Method reads and return one bit from current packet data"""
+        try:
+            required_bit = bool(self._current_packet[self.byte_pointer]
+                                & (1 << self.bit_pointer))
+        except IndexError:
+            raise EndOfPacketException('End of packet condition triggered')
+
+        self.bit_pointer += 1
+        if self.bit_pointer == 8:
+            self.bit_pointer = 0
+            self.byte_pointer += 1
+
+        return int(required_bit)
+
+    def read_bits(self, bits_count: int) -> str:
+        """Method reads and return several bits from current packet data"""
+        assert bits_count >= 0
+
+        read_bits = ''
+        for i in range(bits_count):
+            read_bits = str(self.read_bit()) + read_bits
+
+        return read_bits
+
+    def read_byte(self) -> bytes:
+        """Method reads and return one byte from current packet"""
+        return bytes([self.read_bits_for_int(8)])
+
+    def read_bytes(self, bytes_count: int) -> bytes:
+        """Method reads and return several bytes from current packet"""
+        assert bytes_count >= 0
+
+        read_bytes = b''
+        for i in range(bytes_count):
+            read_bytes += self.read_byte()
+
+        return read_bytes
+
+    def read_bits_for_int(self, bits_count: int,
+                          signed: bool = False) -> int:
+        """Reads bits from current packet for int value
+
+        Reads [bits_count] bits from current packet and return unsigned int
+        value"""
+        assert bits_count >= 0
+
+        number = self.read_bits(bits_count)
+
+        if not signed or number[0] == '0':
+            return int(number, 2)
+        else:
+            number = int(number, 2) - 1
+            return -(number
+                     ^ int(''.join(['1'] * bits_count), 2))

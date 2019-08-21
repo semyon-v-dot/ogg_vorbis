@@ -173,11 +173,12 @@ class PacketsProcessor(AbstractDecoder):
 
             if current_stream.vorbis_floor_types[i] == 1:
                 current_stream.vorbis_floor_configurations.append(
-                    self._floors_decoder.decode_floor_config_type_1())
+                    self._floors_decoder.read_floor_config_type_1(
+                        len(current_stream.vorbis_codebook_configurations)))
 
             elif current_stream.vorbis_floor_types[i] == 0:
                 current_stream.vorbis_floor_configurations.append(
-                    self._floors_decoder.decode_floor_config_type_0())
+                    self._floors_decoder.read_floor_config_type_0())
 
             else:
                 raise CorruptedFileDataError(
