@@ -88,9 +88,9 @@ class PacketsProcessor(AbstractDecoder):
             self._process_headers()
         except (FileDataException, BaseException) as occurred_exc:
             occurred_exc.args += (
-                f'\nError occurred in [{len(self.logical_streams)}] '
+                f'Error occurred in [{len(self.logical_streams)}] '
                 'logical stream',
-                '\nError occurred on '
+                'Error occurred on '
                 f'[{self._data_reader.get_global_position()}] '
                 'byte position')
             raise occurred_exc
@@ -234,7 +234,6 @@ class PacketsProcessor(AbstractDecoder):
 
         return modes_configs
 
-    # TODO: Understand result values
     def _process_identification_header(self):
         """Processes identification header
 
@@ -242,82 +241,83 @@ class PacketsProcessor(AbstractDecoder):
         header"""
         self._check_header_sync_pattern()
 
-        logical_stream_info = (
-            'Logical stream number: ' + str(len(self.logical_streams)))
+        current_stream: 'PacketsProcessor.LogicalStream' = (
+            self.logical_streams[-1])
 
-        vorbis_version = self._read_bits_for_int(32)
+        vorbis_version = self._read_bits_for_int(32)  # Line from docs
+
         if vorbis_version != 0:
+            raise CorruptedFileDataError('Version of Vorbis is zero')
+
+        current_stream.audio_channels = self._read_bits_for_int(8)
+        current_stream.audio_sample_rate = self._read_bits_for_int(32)
+
+        if (current_stream.audio_channels == 0
+                or current_stream.audio_sample_rate == 0):
             raise CorruptedFileDataError(
-                'Decoder is not compatible with this version of Vorbis. '
-                + logical_stream_info)
+                '[audio_channels] or [audio_sample_rate] equal to zero')
 
-        self.logical_streams[-1].audio_channels = self._read_bits_for_int(8)
-        self.logical_streams[-1].audio_sample_rate =\
-            self._read_bits_for_int(32)
-        if self.logical_streams[-1].audio_channels == 0 or\
-           self.logical_streams[-1].audio_sample_rate == 0:
+        current_stream.bitrate_maximum = (
+            self._read_bits_for_int(32, signed=True))
+        current_stream.bitrate_nominal = (
+            self._read_bits_for_int(32, signed=True))
+        current_stream.bitrate_minimum = (
+            self._read_bits_for_int(32, signed=True))
+
+        current_stream.blocksize_0 = 1 << self._read_bits_for_int(4)
+        current_stream.blocksize_1 = 1 << self._read_bits_for_int(4)
+
+        if current_stream.blocksize_0 > current_stream.blocksize_1:
             raise CorruptedFileDataError(
-                'Amount of audio channels or audio sample rate'
-                'equal to zero. '
-                + logical_stream_info)
+                '[blocksize_0] greater than [blocksize_1]')
 
-        self.logical_streams[-1].bitrate_maximum =\
-            self._read_bits_for_int(32, signed=True)
-        self.logical_streams[-1].bitrate_nominal =\
-            self._read_bits_for_int(32, signed=True)
-        self.logical_streams[-1].bitrate_minimum =\
-            self._read_bits_for_int(32, signed=True)
-
-        self.logical_streams[-1].blocksize_0 = self._read_bits_for_int(4)
-        self.logical_streams[-1].blocksize_1 = self._read_bits_for_int(4)
         allowed_blocksizes = [64, 128, 256, 512, 1024, 2048, 4096, 8192]
-        if self.logical_streams[-1].blocksize_0 >\
-           self.logical_streams[-1].blocksize_1:
-            raise CorruptedFileDataError(
-                '[blocksize_0] greater than [blocksize_1]. '
-                + logical_stream_info)
-        if (1 << self.logical_streams[-1].blocksize_0) not in \
-           allowed_blocksizes or \
-           (1 << self.logical_streams[-1].blocksize_1) not in \
-           allowed_blocksizes:
-            raise CorruptedFileDataError(
-                '[blocksize_0] or [blocksize_1] have not allowed values. '
-                + logical_stream_info)
 
-        if not self._read_bit():
+        if (
+                current_stream.blocksize_0 not in allowed_blocksizes
+                or
+                current_stream.blocksize_1 not in allowed_blocksizes):
             raise CorruptedFileDataError(
-                'Framing flag is a zero while reading identification header. '
-                + logical_stream_info)
+                '[blocksize_0] or [blocksize_1] have not allowed values')
+
+        if not bool(self._read_bit()):  # Framing flag check
+            raise CorruptedFileDataError('Framing flag is a zero')
 
     def _process_comment_header(self):
         """Method process comment header storing info in appropriate \
 [logical_stream] object"""
         self._check_header_sync_pattern()
 
+        current_stream: 'PacketsProcessor.LogicalStream' = (
+            self.logical_streams[-1])
+
         vendor_length = self._read_bits_for_int(32)
         vendor_string = self._read_bytes(vendor_length)
+
         try:
-            self.logical_streams[-1].vendor_string = \
+            current_stream.vendor_string = \
                 vendor_string.decode('utf-8')
         except UnicodeError:
-            self.logical_streams[-1].comment_header_decoding_failed = True
+            current_stream.comment_header_decoding_failed = True
 
         user_comment_list_length = self._read_bits_for_int(32)
         user_comment_list_strings = []
+
         for i in range(user_comment_list_length):
             length_ = self._read_bits_for_int(32)
             string_ = self._read_bytes(length_)
+
             try:
                 user_comment_list_strings.append(string_.decode('utf-8'))
             except UnicodeError:
-                self.logical_streams[-1].comment_header_decoding_failed = True
+                current_stream.comment_header_decoding_failed = True
                 user_comment_list_strings.append(
                     '[Unicode decoding failed]')
-        self.logical_streams[-1].user_comment_list_strings = \
-            user_comment_list_strings
 
-        if not self._read_bit:  # framing bit
-            self.logical_streams[-1].comment_header_decoding_failed = True
+        current_stream.user_comment_list_strings = user_comment_list_strings
+
+        if not bool(self._read_bit):  # framing bit
+            current_stream.comment_header_decoding_failed = True
 
     def _check_header_sync_pattern(self):
         """Method checks if there is a header sync pattern in packet data"""
