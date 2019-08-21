@@ -151,7 +151,6 @@ class CodebookDecoder(AbstractDecoder):
         if self._read_bytes(3) != b'\x42\x43\x56':
             raise CorruptedFileDataError('Codebook sync pattern is absent')
 
-    # Optimize: assert codeword_length < 32 ?
     def _read_codeword_lengths(self) -> List[int]:
         """Method reads codewords lengths from packet data"""
         result_codeword_lengths: List[int] = []
@@ -238,47 +237,57 @@ class CodebookDecoder(AbstractDecoder):
                     available[new_branch] = result + (
                             1 << (32 - new_branch))
 
-    # TODO: Understand this method
+    # TODO: Generate test data via manual calculation
     def _vq_lookup_table_unpack(self) -> List[List[float]]:
-        """Decodes VQ lookup table from some values from packet data"""
+        """Decodes VQ lookup table from some values in packet data"""
         result_vq_table: List[List[float]] = []
 
         if self._codebook_lookup_type == 1:
             for lookup_offset in range(self._codebook_entries):
-                last = 0
-                index_divisor = 1
+                last: float = 0
+                index_divisor: int = 1
                 value_vector: List[float] = []
+
                 for i in range(self._codebook_dimensions):
-                    multiplicand_offset = \
-                        (lookup_offset // index_divisor) \
-                        % self._codebook_lookup_values
+                    multiplicand_offset = (
+                        (lookup_offset // index_divisor)
+                        % self._codebook_lookup_values)
                     value_vector.append(
                         self._codebook_multiplicands[multiplicand_offset]
                         * self._codebook_delta_value
                         + self._codebook_minimum_value
                         + last)
+
                     if self._codebook_sequence_p:
                         last = value_vector[i]
+
                     index_divisor *= self._codebook_lookup_values
 
                 result_vq_table.append(value_vector)
-        else:
+        elif self._codebook_lookup_type == 2:
             for lookup_offset in range(self._codebook_entries):
-                last = 0
-                multiplicand_offset = (
+                last: float = 0
+                multiplicand_offset: int = (
                         lookup_offset * self._codebook_dimensions)
                 value_vector: List[float] = []
+
                 for i in range(self._codebook_dimensions):
                     value_vector.append(
                         self._codebook_multiplicands[multiplicand_offset]
                         * self._codebook_delta_value
                         + self._codebook_minimum_value
                         + last)
+
                     if self._codebook_sequence_p:
                         last = value_vector[i]
+
                     multiplicand_offset += 1
 
                 result_vq_table.append(value_vector)
+        else:
+            raise CorruptedFileDataError(
+                'Got illegal codebook lookup type: '
+                f'{self._codebook_lookup_type}')
 
         return result_vq_table
 
