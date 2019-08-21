@@ -264,6 +264,7 @@ class CodebookDecoder(AbstractDecoder):
                     index_divisor *= self._codebook_lookup_values
 
                 result_vq_table.append(value_vector)
+
         elif self._codebook_lookup_type == 2:
             for lookup_offset in range(self._codebook_entries):
                 last: float = 0
@@ -284,6 +285,7 @@ class CodebookDecoder(AbstractDecoder):
                     multiplicand_offset += 1
 
                 result_vq_table.append(value_vector)
+
         else:
             raise CorruptedFileDataError(
                 'Got illegal codebook lookup type: '
