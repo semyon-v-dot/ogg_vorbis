@@ -7,7 +7,7 @@ from .decoders import (
     CodebookDecoder,
     FloorsDecoder,
     ResiduesDecoder,
-    MappingDecoder,
+    MappingsDecoder,
     EndOfPacketException)
 
 
@@ -45,7 +45,7 @@ class PacketsProcessor(AbstractDecoder):
         vorbis_residue_types: List[int]
         vorbis_residue_configurations: List[ResiduesDecoder.ResidueData] = []
 
-        vorbis_mapping_configurations: List[MappingDecoder.MappingData] = []
+        vorbis_mapping_configurations: List[MappingsDecoder.MappingData] = []
 
         vorbis_mode_configurations: Tuple[int, int] = []
 
@@ -55,6 +55,7 @@ class PacketsProcessor(AbstractDecoder):
     _codebook_decoder: CodebookDecoder
     _floors_decoder: FloorsDecoder
     _residues_decoder: ResiduesDecoder
+    _mappings_decoder: MappingsDecoder
 
     logical_streams: List[LogicalStream] = []
 
@@ -150,11 +151,13 @@ class PacketsProcessor(AbstractDecoder):
         current_stream = self.logical_streams[-1]
 
         # Codebooks decoding
+        # TODO: Recheck
         for i in range(self._read_bits_for_int(8) + 1):
             current_stream.vorbis_codebook_configurations.append(
                 self._codebook_decoder.read_codebook())
 
         # Placeholders in Vorbis I
+        # TODO: Recheck
         vorbis_time_count = self._read_bits_for_int(6) + 1  # Line from docs
         for i in range(vorbis_time_count):
             placeholder = self._read_bits_for_int(16)
@@ -165,27 +168,30 @@ class PacketsProcessor(AbstractDecoder):
                     + str(i))
 
         # Floors decoding
+        # TODO: Recheck
         (current_stream.vorbis_floor_types,
          current_stream.vorbis_codebook_configurations) = (
             self._floors_decoder.read_floors(
                 len(current_stream.vorbis_codebook_configurations)))
 
-        # TODO: Residues decoding
-        # TODO: Move this into decoder
-        for i in range(self._read_bits_for_int(6) + 1):
-            current_stream.vorbis_residue_types.append(
-                self._read_bits_for_int(16))
-            if 0 <= current_stream.vorbis_residue_types[i] < 3:
-                current_stream.vorbis_residue_configurations.append(
-                    self.decode_residue_config())
-            else:
-                raise CorruptedFileDataError(
-                    'Nonsupported residue type: '
-                    + str(current_stream.vorbis_residue_types[i]))
+        # Residues decoding
+        # TODO: Recheck
+        (current_stream.vorbis_residue_types,
+         current_stream.vorbis_residue_configurations) = (
+            self._residues_decoder.read_residues(
+                current_stream.vorbis_codebook_configurations))
 
-        # TODO: Mappings decoding
+        # Mappings decoding
+        # TODO: Recheck
+        current_stream.vorbis_mapping_configurations = (
+            self._mappings_decoder.read_mappings(
+                current_stream.audio_channels,
+                current_stream.vorbis_floor_types,
+                current_stream.vorbis_residue_types))
+
 
         # TODO: Modes decoding
+        # TODO: Recheck
         # self._process_modes()
 
     # TODO
