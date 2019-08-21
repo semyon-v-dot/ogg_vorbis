@@ -47,7 +47,7 @@ class PacketsProcessor(AbstractDecoder):
 
         vorbis_mapping_configurations: List[MappingsDecoder.MappingData] = []
 
-        vorbis_mode_configurations: Tuple[int, int] = []
+        vorbis_mode_configurations: Tuple[bool, int] = []
 
         def __init__(self, input_byte_position: int):
             self.byte_position = input_byte_position
@@ -189,50 +189,48 @@ class PacketsProcessor(AbstractDecoder):
                 current_stream.vorbis_floor_types,
                 current_stream.vorbis_residue_types))
 
-
-        # TODO: Modes decoding
+        # Modes decoding
         # TODO: Recheck
-        # self._process_modes()
+        current_stream.vorbis_mode_configurations = self._read_modes_configs(
+            len(current_stream.vorbis_mapping_configurations))
 
-    # TODO
-    def _process_modes(self):
-        """Processes modes of current logical stream
+        # Framing bit check
+        if not self._read_bit():
+            raise CorruptedFileDataError(
+                'Framing bit lost while setup header decoding')
 
-        Some info about modes.
-        The mode mechanism is used to encode a frame according to one of
-        multiple possible methods with the intention of choosing a method best
-        suited to that frame. Different modes are, e.g. how frame size is
-        changed from frame to frame. The mode number of a frame serves as a
-        top level configuration switch for all other specific aspects of frame
-        decode"""
-        # vorbis_mode_count = self._read_bits_for_int(6) + 1
-        # current_stream.vorbis_mode_configurations = []
-        # for i in range(vorbis_mode_count):
-        #     vorbis_mode_blockflag = self._read_bit()
-        #     vorbis_mode_windowtype = self._read_bits_for_int(16)
-        #     vorbis_mode_transformtype = self._read_bits_for_int(16)
-        #     vorbis_mode_mapping = self._read_bits_for_int(8)
-        #     if (vorbis_mode_windowtype != 0
-        #             or vorbis_mode_transformtype != 0):
-        #         raise CorruptedFileDataError(
-        #             'Received incorrect [vorbis_mode_windowtype] or '
-        #             '[vorbis_mode_transformtype] or [vorbis_mode_mapping]: '
-        #             + str(vorbis_mode_windowtype) + ' '
-        #             + str(vorbis_mode_transformtype))
-        #     if (vorbis_mode_mapping
-        #             > len(current_stream.vorbis_mapping_configurations)):
-        #         raise CorruptedFileDataError(
-        #             'Received incorrect [vorbis_mode_mapping]: '
-        #             + str(vorbis_mode_mapping))
-        #
-        #     current_stream.vorbis_mode_configurations.append(
-        #         (vorbis_mode_blockflag, vorbis_mode_mapping))
-        #
-        # if not self._read_bit():
-        #     raise CorruptedFileDataError(
-        #         'Framing bit lost while setup header decoding')
-        pass
+    def _read_modes_configs(
+            self, mappings_amount: int) -> List[Tuple[bool, int]]:
+        """
 
+        Input data from current logical stream
+        """
+        modes_configs: List[Tuple[bool, int]] = []
+
+        for i in range(self._read_bits_for_int(6) + 1):
+            vorbis_mode_blockflag = bool(self._read_bit())
+            vorbis_mode_windowtype = self._read_bits_for_int(16)
+            vorbis_mode_transformtype = self._read_bits_for_int(16)
+            vorbis_mode_mapping = self._read_bits_for_int(8)
+
+            if vorbis_mode_windowtype != 0 or vorbis_mode_transformtype != 0:
+                raise CorruptedFileDataError(
+                    'Received incorrect [vorbis_mode_windowtype] or '
+                    '[vorbis_mode_transformtype]: '
+                    + str(vorbis_mode_windowtype)
+                    + ' '
+                    + str(vorbis_mode_transformtype))
+
+            if vorbis_mode_mapping > mappings_amount:
+                raise CorruptedFileDataError(
+                    'Received incorrect [vorbis_mode_mapping]: '
+                    + str(vorbis_mode_mapping))
+
+            modes_configs.append((vorbis_mode_blockflag, vorbis_mode_mapping))
+
+        return modes_configs
+
+    # TODO: Understand result values
     def _process_identification_header(self):
         """Processes identification header
 
