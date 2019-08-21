@@ -37,17 +37,17 @@ class PacketsProcessor(AbstractDecoder):
 
         # Setup header data
 
-        vorbis_codebook_configurations: List[CodebookDecoder.CodebookData] = []
+        vorbis_codebook_configurations: List[CodebookDecoder.CodebookData]
 
-        vorbis_floor_types: List[int] = []
-        vorbis_floor_configurations: List[FloorsDecoder.FloorData] = []
+        vorbis_floor_types: List[int]
+        vorbis_floor_configurations: List[FloorsDecoder.FloorData]
 
         vorbis_residue_types: List[int]
-        vorbis_residue_configurations: List[ResiduesDecoder.ResidueData] = []
+        vorbis_residue_configurations: List[ResiduesDecoder.ResidueData]
 
-        vorbis_mapping_configurations: List[MappingsDecoder.MappingData] = []
+        vorbis_mapping_configurations: List[MappingsDecoder.MappingData]
 
-        vorbis_mode_configurations: Tuple[bool, int] = []
+        vorbis_mode_configurations: Tuple[bool, int]
 
         def __init__(self, input_byte_position: int):
             self.byte_position = input_byte_position
@@ -148,10 +148,14 @@ class PacketsProcessor(AbstractDecoder):
 
         Stores info into current logical stream"""
         self._check_header_sync_pattern()
+
         current_stream = self.logical_streams[-1]
 
         # Codebooks decoding
         # TODO: Recheck
+
+        current_stream.vorbis_codebook_configurations = []
+
         for i in range(self._read_bits_for_int(8) + 1):
             current_stream.vorbis_codebook_configurations.append(
                 self._codebook_decoder.read_codebook())
