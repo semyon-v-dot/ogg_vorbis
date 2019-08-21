@@ -1,5 +1,5 @@
-from typing import Optional, Callable, List
-from dataclasses import dataclass, field as dataclass_field
+from typing import Optional, Callable, List, Tuple
+from dataclasses import dataclass
 
 from .ogg import PacketsReader, CorruptedFileDataError, FileDataException
 from .helper_funcs import *
@@ -338,7 +338,7 @@ class CodebookDecoder(AbstractDecoder):
                     'Huffman tree is underspecified')
 
 
-class FloorDecoder(AbstractDecoder):
+class FloorsDecoder(AbstractDecoder):
     class FloorData:
         # TODO: Types
         # TODO: Vars explanations
@@ -353,8 +353,33 @@ class FloorDecoder(AbstractDecoder):
     def __init__(self, data_reader: 'DataReader'):
         super().__init__(data_reader)
 
+    def read_floors(
+            self, codebooks_amount: int) -> Tuple[List[int], List[FloorData]]:
+        """Returns tuple of floors' types AND related floor data"""
+        vorbis_floor_types: List[int] = []
+        vorbis_floor_configurations: List['FloorsDecoder.FloorData'] = []
+
+        for i in range(self._read_bits_for_int(6) + 1):
+            vorbis_floor_types.append(
+                self._read_bits_for_int(16))
+
+            if vorbis_floor_types[i] == 1:
+                vorbis_floor_configurations.append(
+                    self._decode_floor_config_type_1(codebooks_amount))
+
+            elif vorbis_floor_types[i] == 0:
+                vorbis_floor_configurations.append(
+                    self._decode_floor_config_type_0())
+
+            else:
+                raise CorruptedFileDataError(
+                    'Not supported floor type: '
+                    + str(vorbis_floor_types[i]))
+
+        return vorbis_floor_types, vorbis_floor_configurations
+
     # WouldBeBetter: Check docstring for details
-    def read_floor_config_type_0(self) -> FloorData:
+    def _decode_floor_config_type_0(self) -> FloorData:
         """Method decodes floor configuration type 0
 
         From Vorbis I docs:
@@ -364,7 +389,7 @@ class FloorDecoder(AbstractDecoder):
         """
         raise NotImplementedError('Floor 0 decoding')
 
-    def read_floor_config_type_1(self, codebooks_amount: int) -> FloorData:
+    def _decode_floor_config_type_1(self, codebooks_amount: int) -> FloorData:
         """Method decodes floor configuration type 1"""
         floor1_partitions = self._read_bits_for_int(5)
         # maximum_class = -1  # Line from docs
@@ -372,7 +397,7 @@ class FloorDecoder(AbstractDecoder):
         # Then no need to include 0 to 'max' function below with
         # 'maximum_class'
 
-        result_data: 'FloorDecoder.FloorData' = self.FloorData()
+        result_data: 'FloorsDecoder.FloorData' = self.FloorData()
 
         for i in range(floor1_partitions):
             result_data.floor1_partition_class_list.append(
@@ -440,7 +465,7 @@ class FloorDecoder(AbstractDecoder):
 
 
 # TODO
-class ResidueDecoder(AbstractDecoder):
+class ResiduesDecoder(AbstractDecoder):
     """Class for storing residue data"""
     @dataclass
     class ResidueData:
@@ -457,25 +482,7 @@ class ResidueDecoder(AbstractDecoder):
     def __init__(self, data_reader: 'DataReader'):
         super().__init__(data_reader)
 
-    def _process_residues(self):
-        """Method processes residues for current logical bitstream"""
-        current_stream = self.logical_streams[-1]
-
-        vorbis_residue_count = self._read_bits_for_int(6) + 1
-        current_stream.vorbis_residue_types = []
-        current_stream.vorbis_residue_configurations = []
-        for i in range(vorbis_residue_count):
-            current_stream.vorbis_residue_types.append(
-                self._read_bits_for_int(16))
-            if 0 <= current_stream.vorbis_residue_types[i] < 3:
-                current_stream.vorbis_residue_configurations.append(
-                    self._decode_residue_config())
-            else:
-                raise CorruptedFileDataError(
-                    'Nonsupported residue type: '
-                    + str(current_stream.vorbis_residue_types[i]))
-
-    def _decode_residue_config(self):  # A bit of unclear code
+    def decode_residue_config(self):  # A bit of unclear code
         """Method decodes residue configuration"""
         current_stream = self.logical_streams[-1]
 

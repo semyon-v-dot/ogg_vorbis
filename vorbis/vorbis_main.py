@@ -5,8 +5,8 @@ from .decoders import (
     DataReader,
     AbstractDecoder,
     CodebookDecoder,
-    FloorDecoder,
-    ResidueDecoder,
+    FloorsDecoder,
+    ResiduesDecoder,
     MappingDecoder,
     EndOfPacketException)
 
@@ -39,13 +39,11 @@ class PacketsProcessor(AbstractDecoder):
 
         vorbis_codebook_configurations: List[CodebookDecoder.CodebookData] = []
 
-        # TODO: Should decoder return types?
         vorbis_floor_types: List[int] = []
-        vorbis_floor_configurations: List[FloorDecoder.FloorData] = []
+        vorbis_floor_configurations: List[FloorsDecoder.FloorData] = []
 
-        # TODO: Should decoder return types?
         vorbis_residue_types: List[int]
-        vorbis_residue_configurations: List[ResidueDecoder.ResidueData] = []
+        vorbis_residue_configurations: List[ResiduesDecoder.ResidueData] = []
 
         vorbis_mapping_configurations: List[MappingDecoder.MappingData] = []
 
@@ -55,7 +53,8 @@ class PacketsProcessor(AbstractDecoder):
             self.byte_position = input_byte_position
 
     _codebook_decoder: CodebookDecoder
-    _floors_decoder: FloorDecoder
+    _floors_decoder: FloorsDecoder
+    _residues_decoder: ResiduesDecoder
 
     logical_streams: List[LogicalStream] = []
 
@@ -67,7 +66,7 @@ class PacketsProcessor(AbstractDecoder):
         self._basic_file_format_check(filename)
 
         self._codebook_decoder = CodebookDecoder(self._data_reader)
-        self._floors_decoder = FloorDecoder(self._data_reader)
+        self._floors_decoder = FloorsDecoder(self._data_reader)
 
     def _basic_file_format_check(self, filename):
         """Method on a basic level checks if given file is ogg vorbis format"""
@@ -92,8 +91,7 @@ class PacketsProcessor(AbstractDecoder):
                 'logical stream',
                 '\nError occurred on '
                 f'[{self._data_reader.get_global_position()}] '
-                'byte position'
-            )
+                'byte position')
             raise occurred_exc
 
     def _process_headers(self):
@@ -167,30 +165,27 @@ class PacketsProcessor(AbstractDecoder):
                     + str(i))
 
         # Floors decoding
+        (current_stream.vorbis_floor_types,
+         current_stream.vorbis_codebook_configurations) = (
+            self._floors_decoder.read_floors(
+                len(current_stream.vorbis_codebook_configurations)))
+
+        # TODO: Residues decoding
+        # TODO: Move this into decoder
         for i in range(self._read_bits_for_int(6) + 1):
-            current_stream.vorbis_floor_types.append(
+            current_stream.vorbis_residue_types.append(
                 self._read_bits_for_int(16))
-
-            if current_stream.vorbis_floor_types[i] == 1:
-                current_stream.vorbis_floor_configurations.append(
-                    self._floors_decoder.read_floor_config_type_1(
-                        len(current_stream.vorbis_codebook_configurations)))
-
-            elif current_stream.vorbis_floor_types[i] == 0:
-                current_stream.vorbis_floor_configurations.append(
-                    self._floors_decoder.read_floor_config_type_0())
-
+            if 0 <= current_stream.vorbis_residue_types[i] < 3:
+                current_stream.vorbis_residue_configurations.append(
+                    self.decode_residue_config())
             else:
                 raise CorruptedFileDataError(
-                    'Not supported floor type: '
-                    + str(current_stream.vorbis_floor_types[i]))
+                    'Nonsupported residue type: '
+                    + str(current_stream.vorbis_residue_types[i]))
 
-        # current_stream.vorbis_residue_configurations = (
-        #     self._residue_decoder._process_residues())
-        #
-        # current_stream.vorbis_mapping_configurations = (
-        #     self._mapping_decoder._process_mappings())
-        #
+        # TODO: Mappings decoding
+
+        # TODO: Modes decoding
         # self._process_modes()
 
     # TODO
