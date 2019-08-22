@@ -29,9 +29,9 @@ class HelperFunctionsTests(TestCase):
     def test_hex_to_bin(self):
         self.assertEqual(
             hex_str_to_bin_str('00 00'),
-            '0000 0000 0000 0000',
+            '0000_0000 0000_0000',
             'Zero case')
         self.assertEqual(
             hex_str_to_bin_str('23 56'),
-            '0010 0011 0101 0110',
+            '0010_0011 0101_0110',
             'Ordinary case')

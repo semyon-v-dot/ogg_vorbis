@@ -17,7 +17,7 @@ def hex_str_to_bin_str(hex_str: str):
     bin_values: List[str] = [
         bin(int(item, 16))[2:].zfill(8) for item in hex_str.split(' ')]
 
-    return ' '.join([item[:4] + ' ' + item[4:] for item in bin_values])
+    return ' '.join([item[:4] + '_' + item[4:] for item in bin_values])
 
 
 # noinspection PyMethodMayBeStatic
@@ -27,7 +27,7 @@ class CodebookDecodingTests(TestCase):
 
         codebook_decoder._check_codebook_sync_pattern()
 
-    def test_read_codebook_1(self):
+    def test_read_codebook(self):
         data_reader = DataReader(PATH_ORDINARY_TEST_1)
         codebook_decoder = CodebookDecoder(data_reader)
 
@@ -42,7 +42,7 @@ class CodebookDecodingTests(TestCase):
         #                                                    05
         # 76 6F 72 62 | 69 73 2B 42 | 43 56 01 00 | 08 00 00 00
         # 31 4C 20 C5 | 80 D0 90 55 | 00 00 10 00 | 00 60 24 29
-        # 0E 93 66 49 | 29 A5 94 A1 | 28 79 98 94 | 48 49 29 A5
+        # 0E 93 66 49 | 29 A5 94 A1 | 28 79 98 94 | 48 49 29 A5 [...]
         #
         # 05
         # 76 6F 72 62 . 69 73
@@ -51,12 +51,15 @@ class CodebookDecodingTests(TestCase):
         # 01 00
         # 08 00 00
         # [bitstream starts]
-        # 00 31 4C 20 C5 80 D0 90 55 00 00 10 00 00 60 24 29 0E 93 66 49 29 A5
-        # 94 A1 28 79 98 94 48 49 29 A5
-        #
-        #
-        #
-        #
+        # 00 31 4C 20 | 0000_0000 0011_0001 0100_1100 0010_0000
+        # C5 80 D0 90 | 1100_0101 1000_0000 1101_0000 1001_0000
+        # 55 00 00 10 | 0101_0101 0000_0000 0000_0000 0001_0000
+        # 00 00 60 24 | 0000_0000 0000_0000 0110_0000 0010_0100
+        # 29 0E 93 66 | 0010_1001 0000_1110 1001_0011 0110_0110
+        # 49 29 A5 94 | 0100_1001 0010_1001 1010_0101 1001_0100
+        # A1 28 79 98 | 1010_0001 0010_1000 0111_1001 1001_1000
+        # 94 48 49 29 | 1001_0100 0100_1000 0100_1001 0010_1001
+        # A5 [...]    | 1010_0101
         #
         # Packet type. It's setup header packet
         # 05
@@ -79,15 +82,20 @@ class CodebookDecodingTests(TestCase):
         # HEX: 08 00 00
         # DEC: 8
         #
+        # [bitstream starts]
+        # (NOTE: '()' AND '|' for moved bits. '_' for readability)
         #
-        #
-        #
-        #
-        #
+        # (0) [0000_0] -> length_1 [0] -> sparse [0] -> ordered
+        # (0011) [0001|0] -> length_2
+        # (01) [0011_0] -> length_4 [0|0011] -> length_3
+        # [0010_0] -> length_6 [000|01] -> length_5
+        # (110) [0010_1] -> length_7
+        # [...] [0000] -> codebook_lookup_type [00|110] -> length_8
 
         assert codebook_decoder._codebook_dimensions == 1
         assert codebook_decoder._codebook_entries == 8
         assert codebook_decoder._ordered == 0
+        assert codebook_decoder._sparse == 0
         assert codebook_decoder._codebook_lookup_type == 0
 
         self.assertEqual(
@@ -95,10 +103,10 @@ class CodebookDecodingTests(TestCase):
             [1, 3, 4, 7, 2, 5, 6, 7])
         self.assertEqual(
             codebook_decoder._codebook_codewords,
-            ['0', '100', '1010', '1011000',
-             '11', '10111', '101101', '1011001'])
+            ['0', '100', '1010', '1011000', '11', '10111', '101101',
+             '1011001'])
 
-    def test_read_codebook_2(self):
+    def test_read_codebook_with_nonzero_lookup_type(self):
         data_reader = DataReader(PATH_ORDINARY_TEST_1)
         codebook_decoder = CodebookDecoder(data_reader)
 
@@ -106,37 +114,143 @@ class CodebookDecodingTests(TestCase):
         data_reader.read_packet()
         data_reader.read_packet()
 
-        data_reader.byte_pointer = 208
-        rbf = codebook_decoder.read_codebook  # rbf -> Read Book Function
+        data_reader.byte_pointer = 8
 
-# ... 0000  0_0110
-# 0_1000  0_0110  0_1000  0_0101  0_0111  0_0101  0_0110  0_0101  0_0110
-# 0_0101  0_0110  0_0100  0_0101  0_0100  0_0101  0_0100  0_0101  0_0100
-# 0_0100  0_0100  0_0100  0_0100  0_0100  0_0011  0_0100  0_0011  0_0100
-# 0_0011  0_0100  0_0100  0_0001  0  0  0000_0000_0000_0000_0010_0000
-# 0000_0000_0000_0001  0101_0110  0100_0011  0100_0010 <- beginning here
+        for i in range(29):
+            codebook_decoder.read_codebook()
 
-        rbf()
-        self.assertEqual(rbf.codebook_dimensions, 1)
-        self.assertEqual(rbf.codebook_entries, 32)
-        self.assertEqual(rbf.ordered, 0)
-        self.assertEqual(len(rbf.codebook_codewords_lengths),
-                         rbf.codebook_entries)
-        self.assertEqual(rbf.codebook_codewords_lengths,
-                         [2, 5, 5, 4,
-                          5, 4, 5, 4, 5, 5, 5, 5, 5,
-                          5, 6, 5, 6, 5, 6, 5, 7, 6,
-                          7, 6, 7, 6, 8, 6, 9, 7, 9,
-                          7])
-        # self.assertEqual(rbf.codebook_codewords,
-        #                  ['00', '01000', '01001', '0101', '01100', '0111',
-        #                   '01101', '1000', '10010', '10011', '10100',
-        #                   '10101', '10110', '10111', '110000', '11001',
-        #                   '110001', '11010', '110110', '11100', '1101110',
-        #                   '111010', '1101111', '111011', '1111000',
-        #                   '111101', '11110010', '111110', '111100110',
-        #                   '1111110', '111100111', '1111111'])
-        self.assertEqual(rbf.codebook_lookup_type, 0)
+        # Byte position: 120_288
+        # Bit pointer: 7
+        assert (data_reader.get_packet_global_position()
+                + data_reader.byte_pointer) == 120288
+        assert data_reader.bit_pointer == 7
+
+        # [bitstream]
+        # 42 A1 21 2B | 0100_0010 1010_0001 0010_0001 0010_1011
+        # 02 80 38 01 | 0000_0010 1000_0000 0011_1000 0000_0001
+        # 00 8B 24 79 | 0000_0000 1000_1011 0010_0100 0111_1001
+        # 1E 49 F2 3C | 0001_1110 0100_1001 1111_0010 0011_1100
+        # 92 E4 79 34 | 1001_0010 1110_0100 0111_1001 0011_0100
+        # 4D 14 21 8A | 0100_1101 0001_0100 0010_0001 1000_1010
+        # 96 A6 89 1E | 1001_0110 1010_0110 1000_1001 0001_1110
+        # CF 13 45 9E | 1100_1111 0001_0011 0100_0101 1001_1110
+        # 26 8A 44 D3 | 0010_0110 1000_1010 0100_0100 1101_0011
+        # 34 A1 9A 96 | 0011_0100 1010_0001 1001_1010 1001_0110
+        # A6 79 22 CF | 1010_0110 0111_1001 0010_0010 1100_1111
+        # 13 45 9A 27 | 0001_0011 0100_0101 1001_1010 0010_0111
+        # 8A 4C 51 35 | 1000_1010 0100_1100 0101_0001 0011_0101
+        # 61 9A 9E E8 | 0110_0001 1001_1010 1001_1110 1110_1000
+        # 99 26 D3 74 | 1001_1001 0010_0110 1101_0011 0111_0100
+        # 55 A6 A9 AA | 0101_0101 1010_0110 1010_1001 1010_1010
+        # 5C 59 96 21 | 0101_1100 0101_1001 1001_0110 0010_0001
+        # BB 9E 27 9A | 1011_1011 1001_1110 0010_0111 1001_1010
+        # 26 D3 54 5D | 0010_0110 1101_0011 0101_0100 0101_1101
+        # A6 A9 AA 64 | 1010_0110 1010_1001 1010_1010 0110_0100 [...]
+        #
+        # (0) [100_0010] -> previous codebook
+        # (1) [010_0001|0] -> 'B'
+        # (0) [010_0001|1] -> 'C'
+        # (0) [010_1011|0] -> 'V'
+        # (0000_0010|0)
+        # (1) [000_0000|0000_0010||0] -> codebook_dimensions
+        # (0011_1000|1)
+        # (0000_0001|0011_1000||1)
+        # 0 [000_0000|0000_0001||0011_1000|||1] -> codebook_entries
+        # 1000_1011
+        # 0010_0100
+        # 0111_1001
+        # 0001_1110
+        # 0100_1001
+        # 1111_0010
+        # 0011_1100
+        # 1001_0010
+        # 1110_0100
+        # 0111_1001
+        # 0011_0100
+        # 0100_1101
+        # 0001_0100
+        # 0010_0001
+        # 1000_1010
+        # 1001_0110
+        # 1010_0110
+        # 1000_1001
+        # 0001_1110
+        # 1100_1111
+        # 0001_0011
+        # 0100_0101
+        # 1001_1110
+        # 0010_0110
+        # 1000_1010
+        # 0100_0100
+        # 1101_0011
+        # 0011_0100
+        # 1010_0001
+        # 1001_1010
+        # 1001_0110
+        # 1010_0110
+        # 0111_1001
+        # 0010_0010
+        # 1100_1111
+        # 0001_0011
+        # 0100_0101
+        # 1001_1010
+        # 0010_0111
+        # 1000_1010
+        # 0100_1100
+        # 0101_0001
+        # 0011_0101
+        # 0110_0001
+        # 1001_1010
+        # 1001_1110
+        # 1110_1000
+        # 1001_1001
+        # 0010_0110
+        # 1101_0011
+        # 0111_0100
+        # 0101_0101
+        # 1010_0110
+        # 1010_1001
+        # 1010_1010
+        # 0101_1100
+        # 0101_1001
+        # 1001_0110
+        # 0010_0001
+        # 1011_1011
+        # 1001_1110
+        # 0010_0111
+        # 1001_1010
+        # 0010_0110
+        # 1101_0011
+        # 0101_0100
+        # 0101_1101
+        # 1010_0110
+        # 1010_1001
+        # 1010_1010
+        # 0110_0100
+        #
+        #
+        #
+        #
+        #
+        #
+        #
+        #
+        #
+        #
+        #
+        #
+        #
+        #
+        #
+        #
+        #
+        #
+        #
+        #
+
+        self.assertEqual(codebook_decoder._codebook_dimensions, 4)
+        self.assertEqual(codebook_decoder._codebook_entries, 625)
+
 
 
 class HuffmanTests(TestCase):
