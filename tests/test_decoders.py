@@ -426,52 +426,34 @@ class HuffmanTests(TestCase):
             self._EXTREMELY_BIG_HUFFMAN)
 
 
+# noinspection PyMethodMayBeStatic
 class DataReaderTests(TestCase):
     def test_read_some_bytes(self):
-        data_reader = DataReader(PATH_ORDINARY_TEST_1)
+        data_reader = DataReader(data=b'\x76\x6f\x72\x62\x69\x73')
 
-        data_reader._current_packet = b'\x76\x6f\x72\x62\x69\x73'
-        read_bytes = b''
-        for i in range(6):
-            read_bytes += data_reader.read_byte()
+        self.assertEqual(
+            data_reader.read_bytes(6),
+            b'\x76\x6f\x72\x62\x69\x73')
 
-        self.assertEqual(read_bytes, b'\x76\x6f\x72\x62\x69\x73')
+    def test_read_some_extra_bytes(self):
+        data_reader = DataReader(data=b'\x76\x6f\x72\x62\x69\x73')
 
-    @staticmethod
-    def test_read_some_extra_bytes():
-        data_reader = DataReader(PATH_ORDINARY_TEST_1)
-
-        data_reader._current_packet = b'\x76\x6f\x72\x62\x69\x73'
-        try:
-            for i in range(7):
-                data_reader.read_byte()
-        except EndOfPacketException:
-            pass
+        with self.assertRaises(EndOfPacketException):
+            data_reader.read_bytes(7)
 
     def test_read_some_bits(self):
-        data_reader = DataReader(PATH_ORDINARY_TEST_1)
+        # 92 E4 -> 1001_0010 1110_0100
+        data_reader = DataReader(data=b'\x92\xE4')
 
-        data_reader._current_packet = b'\x76\x6f\x72'
-        read_bits = ""
-        for i in range(3):
-            bits_in_byte = ""
-            for j in range(8):
-                bits_in_byte += str(data_reader.read_bit())
-            read_bits += bits_in_byte[::-1]
+        self.assertEqual(
+            data_reader._read_bits(2 * 8),
+            "1110010010010010")
 
-        self.assertEqual(read_bits, "011101100110111101110010")
+    def test_read_some_extra_bits(self):
+        data_reader = DataReader(data=b'\x76\x6f\x72')
 
-    @staticmethod
-    def test_read_some_extra_bits():
-        data_reader = DataReader(PATH_ORDINARY_TEST_1)
-
-        try:
-            data_reader._current_packet = b'\x76\x6f\x72'
-            for i in range(4):
-                for j in range(8):
-                    data_reader.read_bit()
-        except EndOfPacketException:
-            pass
+        with self.assertRaises(EndOfPacketException):
+            data_reader._read_bits(8 * 3 + 1)
 
     def test_read_bits_for_unsigned_int(self):
         data_reader = DataReader(PATH_ORDINARY_TEST_1)
@@ -482,9 +464,8 @@ class DataReaderTests(TestCase):
         self.assertEqual(data_reader.read_bits_for_int(9), 344)
 
     def test_read_bits_for_signed_int(self):
-        data_reader = DataReader(PATH_ORDINARY_TEST_1)
+        data_reader = DataReader(data=b'\x32\x56')
 
-        data_reader._current_packet = b'\x32\x56'
         self.assertEqual(
             data_reader.read_bits_for_int(2, signed=True), -2)
         self.assertEqual(
