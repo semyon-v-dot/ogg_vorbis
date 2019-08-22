@@ -85,7 +85,7 @@ class PacketsProcessor(AbstractDecoder):
         try:
             for i in range(3):
                 self._data_reader.read_packet()
-                self._read_byte()
+                self._read_bytes(1)
                 self._check_header_sync_pattern()
         except EndOfPacketException:
             raise CorruptedFileDataError(
@@ -98,22 +98,25 @@ class PacketsProcessor(AbstractDecoder):
         try:
             self._process_headers()
         except (FileDataException, BaseException) as occurred_exc:
+            current_byte_position = (
+                    self._data_reader.get_packet_global_position()
+                    + self._data_reader.byte_pointer)
+
             occurred_exc.args += (
-                f'Error occurred in [{len(self.logical_streams)}] '
+                f'Error occurred in [{len(self.logical_streams) - 1}] '
                 'logical stream',
                 'Error occurred on '
-                f'[{self._data_reader.get_global_position()}] '
-                'byte position')
+                f'[{current_byte_position}] byte position')
             raise occurred_exc
 
     def _process_headers(self):
         """Processes headers in whole file creating [logical_stream] objects"""
         try:
             self._data_reader.read_packet()
-            packet_type = self._read_byte()
+            packet_type = self._read_bytes(1)
             while True:
                 self.logical_streams.append(self.LogicalStream(
-                    self._data_reader.get_global_position()))
+                    self._data_reader.get_packet_global_position()))
                 if packet_type != b'\x01':
                     raise CorruptedFileDataError(
                         'Identification header is lost')
@@ -125,7 +128,7 @@ class PacketsProcessor(AbstractDecoder):
                         'identification header decoding')
 
                 self._data_reader.read_packet()
-                packet_type = self._read_byte()
+                packet_type = self._read_bytes(1)
                 if packet_type != b'\x03':
                     raise CorruptedFileDataError('Comment header is lost')
                 self.logical_streams[-1].comment_header_decoding_failed = (
@@ -137,7 +140,7 @@ class PacketsProcessor(AbstractDecoder):
                         True)
 
                 self._data_reader.read_packet()
-                packet_type = self._read_byte()
+                packet_type = self._read_bytes(1)
                 if packet_type != b'\x05':
                     raise CorruptedFileDataError('Setup header is lost')
                 try:
@@ -149,7 +152,7 @@ class PacketsProcessor(AbstractDecoder):
 
                 while packet_type != b'\x01':
                     self._data_reader.read_packet()
-                    packet_type = self._read_byte()
+                    packet_type = self._read_bytes(1)
         except EOFError:
             self._data_reader.restart_file_reading()
 
@@ -163,7 +166,6 @@ class PacketsProcessor(AbstractDecoder):
         current_stream = self.logical_streams[-1]
 
         # Codebooks decoding
-        # TODO: Recheck
 
         current_stream.vorbis_codebook_configurations = []
 
@@ -172,15 +174,15 @@ class PacketsProcessor(AbstractDecoder):
                 self._codebook_decoder.read_codebook())
 
         # Placeholders in Vorbis I
-        # TODO: Recheck
+
         vorbis_time_count = self._read_bits_for_int(6) + 1  # Line from docs
+
         for i in range(vorbis_time_count):
             placeholder = self._read_bits_for_int(16)
+
             if placeholder != 0:
                 raise CorruptedFileDataError(
-                    '[vorbis_time_count] placeholders '
-                    'are contain nonzero value. Number: '
-                    + str(i))
+                    '[vorbis_time_count] placeholders contain nonzero')
 
         # Floors decoding
         # TODO: Recheck

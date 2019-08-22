@@ -23,19 +23,13 @@ class AbstractDecoder:
     These methods are used too often in process of decoding data. So shortcuts
     are presented"""
     _read_bit: Callable[[], int]
-    _read_bits: Callable[[int], str]
-    _read_bits_for_int: Callable[[int, bool], int]
-
-    _read_byte: Callable[[], bytes]
     _read_bytes: Callable[[int], bytes]
+    _read_bits_for_int: Callable[[int, bool], int]
 
     def __init__(self, data_reader: 'DataReader'):
         self._read_bit = data_reader.read_bit
-        self._read_bits = data_reader.read_bits
-        self._read_bits_for_int = data_reader.read_bits_for_int
-
-        self._read_byte = data_reader.read_byte
         self._read_bytes = data_reader.read_bytes
+        self._read_bits_for_int = data_reader.read_bits_for_int
 
 
 class CodebookDecoder(AbstractDecoder):
@@ -68,8 +62,6 @@ class CodebookDecoder(AbstractDecoder):
     _codebook_codewords: List[str]
 
     # Data below for VQ lookup table unpacking
-    # TODO: Explain ALL vars below. It is needed for understanding VQ
-    #  lookup table
     _codebook_lookup_type: int
     _codebook_minimum_value: float
     _codebook_delta_value: float
@@ -89,10 +81,12 @@ class CodebookDecoder(AbstractDecoder):
         self._check_codebook_sync_pattern()
 
         self._codebook_dimensions = int.from_bytes(
-            self._read_bytes(2), byteorder='little')
+            self._read_bytes(2, reversed_output=False),
+            byteorder='big')
 
         self._codebook_entries = int.from_bytes(
-            self._read_bytes(3), byteorder='little')
+            self._read_bytes(3, reversed_output=False),
+            byteorder='big')
 
         if self._codebook_entries == 1:
             raise CorruptedFileDataError('Single codebook entry was given')
@@ -226,7 +220,7 @@ class CodebookDecoder(AbstractDecoder):
                         self._codebook_codewords_lengths[i] - len(
                             codeword))
                     + codeword)
-            result_codewords.append(codeword)
+            result_codewords.append(codeword[::-1])
 
             if max_available_branch != self._codebook_codewords_lengths[i]:
                 for new_branch in range(
@@ -236,6 +230,8 @@ class CodebookDecoder(AbstractDecoder):
                     assert available[new_branch] == 0
                     available[new_branch] = result + (
                             1 << (32 - new_branch))
+
+        return result_codewords
 
     # TODO: Generate test data via manual calculation
     def _vq_lookup_table_unpack(self) -> List[List[float]]:
@@ -293,7 +289,7 @@ class CodebookDecoder(AbstractDecoder):
 
         return result_vq_table
 
-    def _huffman_decode_bfc(self):
+    def _huffman_decode_bfc(self) -> List[str]:
         """Decodes Huffman tree with brute force method
 
         Extremely slow code! Use for tests ONLY!"""
@@ -325,7 +321,7 @@ class CodebookDecoder(AbstractDecoder):
 
                 bfc_value = (
                     bin(int(bfc_value, 2) + 1)[2:]
-                        .zfill(self._codebook_codewords_lengths[i]))
+                    .zfill(self._codebook_codewords_lengths[i]))
 
             return_values.append(bfc_value)
 
@@ -379,8 +375,7 @@ class FloorsDecoder(AbstractDecoder):
         vorbis_floor_configurations: List['FloorsDecoder.FloorData'] = []
 
         for i in range(self._read_bits_for_int(6) + 1):
-            vorbis_floor_types.append(
-                self._read_bits_for_int(16))
+            vorbis_floor_types.append(self._read_bits_for_int(16))
 
             if vorbis_floor_types[i] == 1:
                 vorbis_floor_configurations.append(
@@ -410,19 +405,20 @@ class FloorsDecoder(AbstractDecoder):
 
     def _decode_floor_config_type_1(self, codebooks_amount: int) -> FloorData:
         """Method decodes floor configuration type 1"""
+        result_data: 'FloorsDecoder.FloorData' = self.FloorData()
+
         floor1_partitions = self._read_bits_for_int(5)
         # maximum_class = -1  # Line from docs
         # '_read_bits_for_int' gives unsigned int values, so min value is 0.
         # Then no need to include 0 to 'max' function below with
         # 'maximum_class'
 
-        result_data: 'FloorsDecoder.FloorData' = self.FloorData()
-
         for i in range(floor1_partitions):
             result_data.floor1_partition_class_list.append(
                 self._read_bits_for_int(4))
 
         maximum_class = max(result_data.floor1_partition_class_list)
+
         for i in range(maximum_class + 1):
             result_data.floor1_class_dimensions.append(
                 self._read_bits_for_int(3) + 1)
@@ -433,12 +429,6 @@ class FloorsDecoder(AbstractDecoder):
             if result_data.floor1_class_subclasses[i] != 0:
                 result_data.floor1_class_masterbooks.append(
                     self._read_bits_for_int(8))
-
-                if (result_data.floor1_class_masterbooks[i]
-                        > codebooks_amount):  # TODO
-                    raise CorruptedFileDataError(
-                        'Received incorrect [floor1_class_masterbooks] item: '
-                        + str(result_data.floor1_class_masterbooks[i]))
             else:
                 result_data.floor1_class_masterbooks.append(-1)
 
@@ -448,18 +438,10 @@ class FloorsDecoder(AbstractDecoder):
                 result_data.floor1_subclass_books[i].append(
                     self._read_bits_for_int(8) - 1)
 
-                if (result_data.floor1_subclass_books[i][j]
-                        > codebooks_amount):  # TODO
-                    raise CorruptedFileDataError(
-                        'Received incorrect [floor1_subclass_books] '
-                        'item while floor config decoding: '
-                        + str(result_data.floor1_subclass_books[i]))
-
         result_data.floor1_multiplier = self._read_bits_for_int(2) + 1
 
         range_bits = self._read_bits_for_int(4)
         result_data.floor1_x_list = [0, 1 << range_bits]
-        # floor1_values = 2  # Line from docs  # C++ arrays case
 
         for i in range(floor1_partitions):
             current_class_number = result_data.floor1_partition_class_list[i]
@@ -468,7 +450,20 @@ class FloorsDecoder(AbstractDecoder):
                     result_data.floor1_class_dimensions[current_class_number]):
                 result_data.floor1_x_list.append(
                     self._read_bits_for_int(range_bits))
-                # floor1_values += 1  # Line from docs  # C++ arrays case
+
+        if any(item > codebooks_amount for item in
+               result_data.floor1_class_masterbooks):
+            raise CorruptedFileDataError(
+                'Received [floor1_class_masterbooks] item greater than '
+                f'{codebooks_amount}: '
+                + str(result_data.floor1_class_masterbooks))
+
+        if any(any(scalar > codebooks_amount for scalar in vector)
+                for vector in result_data.floor1_subclass_books):
+            raise CorruptedFileDataError(
+                'Received [floor1_subclass_books] item greater than '
+                f'{codebooks_amount}: '
+                + str(result_data.floor1_subclass_books))
 
         if len(result_data.floor1_x_list) > 65:
             raise CorruptedFileDataError(
@@ -477,7 +472,7 @@ class FloorsDecoder(AbstractDecoder):
         if (len(result_data.floor1_x_list)
                 != len(set(result_data.floor1_x_list))):
             raise CorruptedFileDataError(
-                '[floor1_X_list] have non unique elements '
+                '[floor1_X_list] have non unique elements: '
                 + str(result_data.floor1_x_list))
 
         return result_data
@@ -713,6 +708,7 @@ class DataReader:
     def __init__(self, filename: Optional[str] = None, data: bytes = b''):
         if filename is not None:
             self._packets_reader = PacketsReader(filename)
+
         self._current_packet = data
 
     def close_file(self):
@@ -730,14 +726,59 @@ class DataReader:
         """Method moves global position of [byte_pointer] in audio file"""
         self._packets_reader.move_byte_position(new_position)
 
-    def get_global_position(self):
-        """Method returns global position of [byte_pointer] in audio file"""
-        return self._packets_reader.opened_file.tell()
+    def get_packet_global_position(self):
+        """Returns global position of current packet's beginning"""
+        return (
+            self._packets_reader.opened_file.tell()
+            - len(self._current_packet))
 
     def read_packet(self):
         """Method reads packet from [packets_reader]"""
         self._current_packet = self._packets_reader.read_packet()[0]
         self.byte_pointer = self.bit_pointer = 0
+
+    def read_bytes(
+            self, bytes_count: int, reversed_output: bool = True) -> bytes:
+        """Method reads and return several bytes from current packet
+
+        Set [reversed_output] to False in case of number reading"""
+        assert bytes_count >= 0
+
+        read_bytes = b''
+        for i in range(bytes_count):
+            read_bytes = bytes([self.read_bits_for_int(8)]) + read_bytes
+
+        if reversed_output:
+            return read_bytes[::-1]
+
+        return read_bytes
+
+    def read_bits_for_int(
+            self, bits_count: int, signed: bool = False) -> int:
+        """Reads bits from current packet for int value
+
+        Reads [bits_count] bits from current packet and return unsigned int
+        value"""
+        assert bits_count >= 0
+
+        number = self._read_bits(bits_count)
+
+        if not signed or number[0] == '0':
+            return int(number, 2)
+        else:
+            number = int(number, 2) - 1
+            return -(number
+                     ^ int(''.join(['1'] * bits_count), 2))
+
+    def _read_bits(self, bits_count: int) -> str:
+        """Method reads and return several bits from current packet data"""
+        assert bits_count >= 0
+
+        read_bits = ''
+        for i in range(bits_count):
+            read_bits = str(self.read_bit()) + read_bits
+
+        return read_bits
 
     def read_bit(self) -> int:
         """Method reads and return one bit from current packet data"""
@@ -753,44 +794,3 @@ class DataReader:
             self.byte_pointer += 1
 
         return int(required_bit)
-
-    def read_bits(self, bits_count: int) -> str:
-        """Method reads and return several bits from current packet data"""
-        assert bits_count >= 0
-
-        read_bits = ''
-        for i in range(bits_count):
-            read_bits = str(self.read_bit()) + read_bits
-
-        return read_bits
-
-    def read_byte(self) -> bytes:
-        """Method reads and return one byte from current packet"""
-        return bytes([self.read_bits_for_int(8)])
-
-    def read_bytes(self, bytes_count: int) -> bytes:
-        """Method reads and return several bytes from current packet"""
-        assert bytes_count >= 0
-
-        read_bytes = b''
-        for i in range(bytes_count):
-            read_bytes += self.read_byte()
-
-        return read_bytes
-
-    def read_bits_for_int(self, bits_count: int,
-                          signed: bool = False) -> int:
-        """Reads bits from current packet for int value
-
-        Reads [bits_count] bits from current packet and return unsigned int
-        value"""
-        assert bits_count >= 0
-
-        number = self.read_bits(bits_count)
-
-        if not signed or number[0] == '0':
-            return int(number, 2)
-        else:
-            number = int(number, 2) - 1
-            return -(number
-                     ^ int(''.join(['1'] * bits_count), 2))
