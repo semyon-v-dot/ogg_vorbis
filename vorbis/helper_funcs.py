@@ -41,7 +41,7 @@ def lookup1_values(codebook_entries: int, codebook_dimensions: int) -> int:
     while return_value ** codebook_dimensions <= codebook_entries:
         return_value += 1
 
-    return return_value
+    return return_value - 1
 
 
 def bit_reverse(n: int) -> int:
