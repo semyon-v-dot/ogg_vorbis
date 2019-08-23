@@ -1,7 +1,8 @@
 from unittest import TestCase
 
 import tests.__init__  # Without this anytask won't see tests
-from vorbis.helper_funcs import *
+from vorbis.helper_funcs import (
+    ilog, float32_unpack, lookup1_values, bit_reverse)
 from.test_decoders import hex_str_to_bin_str
 
 

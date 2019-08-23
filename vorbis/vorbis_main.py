@@ -341,7 +341,7 @@ class PacketsProcessor(AbstractDecoder):
         """Method checks if there is a header sync pattern in packet data"""
         pattern = self._read_bytes(6)
 
-        if pattern != b'\x76\x6f\x72\x62\x69\x73':
+        if pattern != b'vorbis':
             raise CorruptedFileDataError(
                 'Header sync pattern is absent')
 

@@ -2,7 +2,7 @@ from typing import Optional, Callable, List, Tuple
 from dataclasses import dataclass
 
 from .ogg import PacketsReader, CorruptedFileDataError, FileDataException
-from .helper_funcs import *
+from .helper_funcs import float32_unpack, ilog, bit_reverse, lookup1_values
 
 
 class EndOfPacketException(FileDataException):
@@ -26,10 +26,15 @@ class AbstractDecoder:
     _read_bytes: Callable[[int], bytes]
     _read_bits_for_int: Callable[[int, bool], int]
 
+    _get_current_global_position: Callable[[], Tuple[int, int]]
+
     def __init__(self, data_reader: 'DataReader'):
         self._read_bit = data_reader.read_bit
         self._read_bytes = data_reader.read_bytes
         self._read_bits_for_int = data_reader.read_bits_for_int
+
+        self._get_current_global_position = (
+            data_reader.get_current_global_position)
 
 
 class CodebookDecoder(AbstractDecoder):
@@ -43,6 +48,8 @@ class CodebookDecoder(AbstractDecoder):
         codebook_codewords: List[str]
         VQ_lookup_table: List[List[float]]
         codebook_lookup_type: int
+
+    last_read_codebook_position: Tuple[int, int]
 
     # Amount of scalars in every VQ table vector
     _codebook_dimensions: int
@@ -78,15 +85,13 @@ class CodebookDecoder(AbstractDecoder):
 
     def read_codebook(self) -> CodebookData:
         """Method reads full codebook from packet data"""
+        self.last_read_codebook_position = self._get_current_global_position()
+
         self._check_codebook_sync_pattern()
 
-        self._codebook_dimensions = int.from_bytes(
-            self._read_bytes(2, reversed_output=False),
-            byteorder='big')
+        self._codebook_dimensions = self._read_bits_for_int(16)
 
-        self._codebook_entries = int.from_bytes(
-            self._read_bytes(3, reversed_output=False),
-            byteorder='big')
+        self._codebook_entries = self._read_bits_for_int(24)
 
         if self._codebook_entries == 1:
             raise CorruptedFileDataError('Single codebook entry was given')
@@ -119,6 +124,9 @@ class CodebookDecoder(AbstractDecoder):
 
             self._codebook_sequence_p = bool(self._read_bit())
 
+            if self._codebook_sequence_p:
+                raise NotImplementedError("[_codebook_sequence_p] is True")
+
             if self._codebook_lookup_type == 1:
                 self._codebook_lookup_values = lookup1_values(
                     self._codebook_entries, self._codebook_dimensions)
@@ -142,12 +150,13 @@ class CodebookDecoder(AbstractDecoder):
 
     def _check_codebook_sync_pattern(self):
         """Checks if there is a codebook sync pattern in packet data"""
-        if self._read_bytes(3) != b'\x42\x43\x56':
+        if self._read_bytes(3) != b'BCV':
             raise CorruptedFileDataError('Codebook sync pattern is absent')
 
     def _read_codeword_lengths(self) -> List[int]:
         """Method reads codewords lengths from packet data"""
         result_codeword_lengths: List[int] = []
+
         if not self._ordered:
             for i in range(self._codebook_entries):
                 if self._sparse:
@@ -178,6 +187,10 @@ class CodebookDecoder(AbstractDecoder):
                 if current_entry > self._codebook_entries:
                     raise CorruptedFileDataError(
                         "Incorrect codebook lengths coding")
+
+        # Error due to 'bit_reverse' helper function
+        if any(item > 32 for item in result_codeword_lengths):
+            raise CorruptedFileDataError("Entry length greater than 32")
 
         return result_codeword_lengths
 
@@ -233,7 +246,6 @@ class CodebookDecoder(AbstractDecoder):
 
         return result_codewords
 
-    # TODO: Generate test data via manual calculation
     def _vq_lookup_table_unpack(self) -> List[List[float]]:
         """Decodes VQ lookup table from some values in packet data"""
         result_vq_table: List[List[float]] = []
@@ -262,25 +274,27 @@ class CodebookDecoder(AbstractDecoder):
                 result_vq_table.append(value_vector)
 
         elif self._codebook_lookup_type == 2:
-            for lookup_offset in range(self._codebook_entries):
-                last: float = 0
-                multiplicand_offset: int = (
-                        lookup_offset * self._codebook_dimensions)
-                value_vector: List[float] = []
-
-                for i in range(self._codebook_dimensions):
-                    value_vector.append(
-                        self._codebook_multiplicands[multiplicand_offset]
-                        * self._codebook_delta_value
-                        + self._codebook_minimum_value
-                        + last)
-
-                    if self._codebook_sequence_p:
-                        last = value_vector[i]
-
-                    multiplicand_offset += 1
-
-                result_vq_table.append(value_vector)
+            raise NotImplementedError(
+                'VQ lookup table unpacking with [_codebook_lookup_type] = 2')
+            # for lookup_offset in range(self._codebook_entries):
+            #     last: float = 0
+            #     multiplicand_offset: int = (
+            #             lookup_offset * self._codebook_dimensions)
+            #     value_vector: List[float] = []
+            #
+            #     for i in range(self._codebook_dimensions):
+            #         value_vector.append(
+            #             self._codebook_multiplicands[multiplicand_offset]
+            #             * self._codebook_delta_value
+            #             + self._codebook_minimum_value
+            #             + last)
+            #
+            #         if self._codebook_sequence_p:
+            #             last = value_vector[i]
+            #
+            #         multiplicand_offset += 1
+            #
+            #     result_vq_table.append(value_vector)
 
         else:
             raise CorruptedFileDataError(
@@ -700,7 +714,14 @@ class MappingsDecoder(AbstractDecoder):
 
 
 class DataReader:
-    """Class for low-level data reading"""
+    """Class for low-level data reading
+
+    IMPORTANT: in bitstream bits have the next order:
+    byte 1: 07 06 05 04 03 02 01 00
+    byte 2: 15 14 13 12 11 10 09 08
+    byte 3: 23 22 21 20 19 18 17 16
+    etc.
+    """
     _current_packet: bytes
     byte_pointer: int = 0
     bit_pointer: int = 0
@@ -717,39 +738,43 @@ class DataReader:
 
     def restart_file_reading(self):
         """Resets file and packet pointers to zero"""
-        self.set_global_position(0)
+        self.set_packet_global_position(0)
         self._current_packet = b''
         self.byte_pointer = 0
         self.bit_pointer = 0
 
-    def set_global_position(self, new_position: int):
+    def set_packet_global_position(self, new_position: int):
         """Method moves global position of [byte_pointer] in audio file"""
         self._packets_reader.move_byte_position(new_position)
 
-    def get_packet_global_position(self):
+    def get_packet_global_position(self) -> int:
         """Returns global position of current packet's beginning"""
         return (
             self._packets_reader.opened_file.tell()
             - len(self._current_packet))
+
+    def get_current_global_position(self) -> Tuple[int, int]:
+        """Returns current global position
+
+        Returns in format: (global_byte, bit_in_current_byte)"""
+        return (
+            self.get_packet_global_position() + self.byte_pointer,
+            self.bit_pointer)
 
     def read_packet(self):
         """Method reads packet from [packets_reader]"""
         self._current_packet = self._packets_reader.read_packet()[0]
         self.byte_pointer = self.bit_pointer = 0
 
-    def read_bytes(
-            self, bytes_count: int, reversed_output: bool = True) -> bytes:
+    def read_bytes(self, bytes_count: int) -> bytes:
         """Method reads and return several bytes from current packet
 
-        Set [reversed_output] to False in case of number reading"""
+        IMPORTANT: method gives bytes in order: 1 2 3 4 5 6!"""
         assert bytes_count >= 0
 
         read_bytes = b''
         for i in range(bytes_count):
-            read_bytes = bytes([self.read_bits_for_int(8)]) + read_bytes
-
-        if reversed_output:
-            return read_bytes[::-1]
+            read_bytes += bytes([int(self._read_bits(8), 2)])
 
         return read_bytes
 
@@ -771,7 +796,9 @@ class DataReader:
                      ^ int(''.join(['1'] * bits_count), 2))
 
     def _read_bits(self, bits_count: int) -> str:
-        """Method reads and return several bits from current packet data"""
+        """Method reads and return several bits from current packet data
+
+        IMPORTANT: method gives bits in order: 6 5 4 3 2 1!"""
         assert bits_count >= 0
 
         read_bits = ''
@@ -782,9 +809,11 @@ class DataReader:
 
     def read_bit(self) -> int:
         """Method reads and return one bit from current packet data"""
+        required_bit = 1
         try:
-            required_bit = bool(self._current_packet[self.byte_pointer]
-                                & (1 << self.bit_pointer))
+            if (self._current_packet[self.byte_pointer]
+                    & (1 << self.bit_pointer) == 0):
+                required_bit = 0
         except IndexError:
             raise EndOfPacketException('End of packet condition triggered')
 
@@ -793,4 +822,4 @@ class DataReader:
             self.bit_pointer = 0
             self.byte_pointer += 1
 
-        return int(required_bit)
+        return required_bit
