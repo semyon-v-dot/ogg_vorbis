@@ -28,7 +28,7 @@ def float32_unpack(x: int) -> float:
     if sign != 0:
         mantissa *= -1
 
-    return mantissa * pow(2, exponent - 788)
+    return float(mantissa) * pow(2, exponent - 788)
 
 
 def lookup1_values(codebook_entries: int, codebook_dimensions: int) -> int:
@@ -38,10 +38,11 @@ def lookup1_values(codebook_entries: int, codebook_dimensions: int) -> int:
     lookup table of lookup type 1"""
     return_value: int = 0
 
-    while (return_value ** codebook_dimensions) <= codebook_entries:
+    comparison_value: float = (return_value ** codebook_dimensions)
+    while comparison_value < codebook_entries:
         return_value += 1
 
-    return return_value - 1
+    return return_value
 
 
 def bit_reverse(n: int) -> int:
