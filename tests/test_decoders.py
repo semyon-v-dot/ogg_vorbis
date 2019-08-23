@@ -3,10 +3,14 @@ from os import path as os_path
 from typing import List
 
 import tests.__init__  # Without this anytask won't see tests
-from vorbis.decoders import *
+from vorbis.decoders import (
+    DataReader,
+    CodebookDecoder,
+    EndOfPacketException)
+from vorbis.helper_funcs import float32_unpack
 
 
-PATH_ORDINARY_TEST_1 = os_path.join(
+PATH_TEST_1 = os_path.join(
     os_path.dirname(os_path.abspath(__file__)),
     'test_audiofiles',
     'test_1.ogg')
@@ -20,15 +24,9 @@ def hex_str_to_bin_str(hex_str: str):
     return ' '.join([item[:4] + '_' + item[4:] for item in bin_values])
 
 
-# noinspection PyMethodMayBeStatic
-class CodebookDecodingTests(TestCase):
-    def test_codebook_sync_pattern_check(self):
-        codebook_decoder = CodebookDecoder(DataReader(data=b'\x42\x43\x56'))
-
-        codebook_decoder._check_codebook_sync_pattern()
-
-    def test_read_codebook(self):
-        data_reader = DataReader(PATH_ORDINARY_TEST_1)
+class CodebookDecoderTests(TestCase):
+    def test_codewords_reading_not_ordered_and_not_sparse(self):
+        data_reader = DataReader(PATH_TEST_1)
         codebook_decoder = CodebookDecoder(data_reader)
 
         data_reader.read_packet()
@@ -106,8 +104,8 @@ class CodebookDecodingTests(TestCase):
             ['0', '100', '1010', '1011000', '11', '10111', '101101',
              '1011001'])
 
-    def test_read_codebook_with_nonzero_lookup_type(self):
-        data_reader = DataReader(PATH_ORDINARY_TEST_1)
+    def test_codewords_reading_not_ordered_and_sparse(self):
+        data_reader = DataReader(PATH_TEST_1)
         codebook_decoder = CodebookDecoder(data_reader)
 
         data_reader.read_packet()
@@ -119,138 +117,194 @@ class CodebookDecodingTests(TestCase):
         for i in range(29):
             codebook_decoder.read_codebook()
 
-        # Byte position: 120_288
-        # Bit pointer: 7
-        assert (data_reader.get_packet_global_position()
-                + data_reader.byte_pointer) == 120288
-        assert data_reader.bit_pointer == 7
+        self.assertEqual(
+            codebook_decoder.last_read_codebook_position,
+            (120230, 0))
 
         # [bitstream]
-        # 42 A1 21 2B | 0100_0010 1010_0001 0010_0001 0010_1011
-        # 02 80 38 01 | 0000_0010 1000_0000 0011_1000 0000_0001
-        # 00 8B 24 79 | 0000_0000 1000_1011 0010_0100 0111_1001
-        # 1E 49 F2 3C | 0001_1110 0100_1001 1111_0010 0011_1100
-        # 92 E4 79 34 | 1001_0010 1110_0100 0111_1001 0011_0100
-        # 4D 14 21 8A | 0100_1101 0001_0100 0010_0001 1000_1010
-        # 96 A6 89 1E | 1001_0110 1010_0110 1000_1001 0001_1110
-        # CF 13 45 9E | 1100_1111 0001_0011 0100_0101 1001_1110
-        # 26 8A 44 D3 | 0010_0110 1000_1010 0100_0100 1101_0011
-        # 34 A1 9A 96 | 0011_0100 1010_0001 1001_1010 1001_0110
-        # A6 79 22 CF | 1010_0110 0111_1001 0010_0010 1100_1111
-        # 13 45 9A 27 | 0001_0011 0100_0101 1001_1010 0010_0111
-        # 8A 4C 51 35 | 1000_1010 0100_1100 0101_0001 0011_0101
-        # 61 9A 9E E8 | 0110_0001 1001_1010 1001_1110 1110_1000
-        # 99 26 D3 74 | 1001_1001 0010_0110 1101_0011 0111_0100
-        # 55 A6 A9 AA | 0101_0101 1010_0110 1010_1001 1010_1010
-        # 5C 59 96 21 | 0101_1100 0101_1001 1001_0110 0010_0001
-        # BB 9E 27 9A | 1011_1011 1001_1110 0010_0111 1001_1010
-        # 26 D3 54 5D | 0010_0110 1101_0011 0101_0100 0101_1101
-        # A6 A9 AA 64 | 1010_0110 1010_1001 1010_1010 0110_0100 [...]
+        #       42 43 |                     0100_0010 0100_0011
+        # 56 04 00 51 | 0101_0110 0000_0100 0000_0000 0101_0001
+        # 00 00 06 49 | 0000_0000 0000_0000 0000_0110 0100_1001
+        # 22 49 24 C9 | 0010_0010 0100_1001 0010_0100 1100_1001 ...
         #
-        # (0) [100_0010] -> previous codebook
-        # (1) [010_0001|0] -> 'B'
-        # (0) [010_0001|1] -> 'C'
-        # (0) [010_1011|0] -> 'V'
-        # (0000_0010|0)
-        # (1) [000_0000|0000_0010||0] -> codebook_dimensions
-        # (0011_1000|1)
-        # (0000_0001|0011_1000||1)
-        # 0 [000_0000|0000_0001||0011_1000|||1] -> codebook_entries
-        # 1000_1011
-        # 0010_0100
-        # 0111_1001
-        # 0001_1110
-        # 0100_1001
-        # 1111_0010
-        # 0011_1100
-        # 1001_0010
-        # 1110_0100
-        # 0111_1001
-        # 0011_0100
-        # 0100_1101
-        # 0001_0100
-        # 0010_0001
-        # 1000_1010
-        # 1001_0110
-        # 1010_0110
-        # 1000_1001
-        # 0001_1110
-        # 1100_1111
-        # 0001_0011
-        # 0100_0101
-        # 1001_1110
-        # 0010_0110
-        # 1000_1010
-        # 0100_0100
-        # 1101_0011
-        # 0011_0100
-        # 1010_0001
-        # 1001_1010
-        # 1001_0110
-        # 1010_0110
-        # 0111_1001
-        # 0010_0010
-        # 1100_1111
-        # 0001_0011
-        # 0100_0101
-        # 1001_1010
-        # 0010_0111
-        # 1000_1010
-        # 0100_1100
-        # 0101_0001
-        # 0011_0101
-        # 0110_0001
-        # 1001_1010
-        # 1001_1110
-        # 1110_1000
-        # 1001_1001
-        # 0010_0110
-        # 1101_0011
-        # 0111_0100
-        # 0101_0101
-        # 1010_0110
-        # 1010_1001
-        # 1010_1010
-        # 0101_1100
-        # 0101_1001
-        # 1001_0110
-        # 0010_0001
-        # 1011_1011
-        # 1001_1110
-        # 0010_0111
-        # 1001_1010
-        # 0010_0110
-        # 1101_0011
-        # 0101_0100
-        # 0101_1101
-        # 1010_0110
-        # 1010_1001
-        # 1010_1010
-        # 0110_0100
-        #
-        #
-        #
-        #
-        #
-        #
-        #
-        #
-        #
-        #
-        #
-        #
-        #
-        #
-        #
-        #
-        #
-        #
-        #
-        #
+        # [bitstream]
+        # [0100_0010] -> B
+        # [0100_0011] -> C
+        # [0101_0110] -> V
+        # (0000_0100)
+        # [0000_0000|0000_0100] -> codebook_dimensions
+        # (0101_0001)
+        # (0000_0000|0101_0001)
+        # [0000_0000|0000_0000||0101_0001] -> codebook_entries
+        # [0000_0] -> length_1 [1] -> flag_1 [1] -> sparse [0] -> ordered
+        # (0) [1] -> flag_3 [00_100] -> length_2 [1] -> flag_2
+        # (00) [1] -> flag_5 [0] -> flag_4 [0010|0] -> length_3
+        # (0100) [1] -> flag_6 [001|00] -> length_5
+        # [0010_0]-> length_8 [1]-> flag_8 [0]-> flag_7 [0|0100]-> length_6
+        # ...
 
         self.assertEqual(codebook_decoder._codebook_dimensions, 4)
-        self.assertEqual(codebook_decoder._codebook_entries, 625)
+        self.assertEqual(codebook_decoder._codebook_entries, 81)
+        self.assertEqual(codebook_decoder._ordered, False)
+        self.assertEqual(codebook_decoder._sparse, True)
 
+        self.assertEqual(
+            len(codebook_decoder._codebook_codewords_lengths), 81)
+        self.assertEqual(
+            codebook_decoder._codebook_codewords_lengths[:8],
+            [1, 5, 5, -1, 5, 5, -1, 5])
+
+        self.assertEqual(
+            len(codebook_decoder._codebook_codewords), 81)
+        self.assertEqual(
+            codebook_decoder._codebook_codewords[:8],
+            ['0', '10000', '10001', '', '10010', '10011', '', '10100'])
+
+    def test_codewords_lengths_reading_ordered(self):
+        data_reader = DataReader(PATH_TEST_1)
+        codebook_decoder = CodebookDecoder(data_reader)
+
+        data_reader.read_packet()
+        data_reader.read_packet()
+        data_reader.read_packet()
+
+        data_reader.byte_pointer = 8
+
+        for i in range(43):
+            codebook_decoder.read_codebook()
+
+        self.assertEqual(
+            codebook_decoder.last_read_codebook_position, (122333, 7))
+
+        # [bitstream]
+        #    48 A1 21 |           0100_1000 1010_0001 0010_0001
+        # AB 00 80 18 | 1010_1011 0000_0000 1000_0000 0001_1000
+        # 00 80 21 00 | 0000_0000 1000_0000 0010_0001 0000_0000
+        # 84 62 B2 01 | 1000_0100 0110_0010 1011_0010 0000_0001
+        # 00 80 09 0E | 0000_0000 1000_0000 0000_1001 0000_1110 ...
+        #
+        # [bitstream]
+        # (0) [100_1000]-> previous codebook
+        # (1) [010_0001|0]-> B
+        # (0) [010_0001|1]-> C
+        # (1) [010_1011|0]-> V
+        # (0000_0000|1)
+        # (1) [000_0000|0000_0000||1]-> codebook_dimensions
+        # (0001_1000|1)
+        # (0000_0000|0001_1000||1)
+        # [1]-> ordered [000_0000|0000_0000||0001_1000|||1]-> codebook_entries
+        # (001) [0_0001]-> length_1
+        # (0000_0) [000|001]-> number_1
+        # (1) [000_010]-> number_3 [0|0000_0]-> number_2
+        # (011) [0_0010|1]-> number_4
+        # 1011_0 [010|011]-> number_5
+
+        self.assertEqual(codebook_decoder._codebook_dimensions, 1)
+        self.assertEqual(codebook_decoder._codebook_entries, 0b1_1000_1)
+        self.assertEqual(codebook_decoder._ordered, True)
+
+        self.assertEqual(
+            len(codebook_decoder._codebook_codewords_lengths), 0b1_10001)
+        self.assertEqual(
+            codebook_decoder._codebook_codewords_lengths[:27],
+            [2, 4, 4] + [5] * 5 + [6] * 19)
+
+    # There is no need to test lookup type 2 values reading because the only
+    # difference is calculation of [_codebook_lookup_values]. And this
+    # calculation takes place in 'lookup1_values' function that is tested in
+    # 'test_helper_funcs.py'
+    def test_lookup_values_reading_type_1(self):
+        data_reader = DataReader(PATH_TEST_1)
+        codebook_decoder = CodebookDecoder(data_reader)
+
+        data_reader.read_packet()
+        data_reader.read_packet()
+        data_reader.read_packet()
+
+        data_reader.byte_pointer = 8
+
+        for i in range(29):
+            codebook_decoder.read_codebook()
+
+        self.assertEqual(
+            codebook_decoder.last_read_codebook_position,
+            (120230, 0))
+
+        # Global position: (120279, 0)
+        #
+        # [bitstream]
+        #          01 |                               0000_0001
+        # 00 00 01 0E | 0000_0000 0000_0000 0000_0001 0000_1110
+        # 00 00 01 16 | 0000_0000 0000_0000 0000_0001 0001_0110
+        # 42 A1 21 2B | 0100_0010 1010_0001 0010_0001 0010_1011 ...
+        #
+        # [bitstream]
+        # (0000) [0001]-> codebook_lookup_type
+        # (0000_0000|0000)
+        # (0000_0000|0000_0000||0000)
+        # (0000_0001|0000_0000||0000_0000|||0000)
+        # (0000) [1110|0000_0001||0000_0000|||0000_0000||||0000]->
+        # # -> codebook_minimum_value
+        # (0000_0000|0000)
+        # (0000_0000|0000_0000||0000)
+        # (0000_0001|0000_0000||0000_0000|||0000)
+        # (0001) [0110|0000_0001||0000_0000|||0000_0000||||0000]->
+        # # -> codebook_delta_value
+        # (010) [0_0]-> v2 [01]-> v1 [0]-> codebook_sequence_p | [0001]->
+        # codebook_value_bits
+        # 1010_0001|0 [10]-> v3
+
+        self.assertEqual(codebook_decoder._codebook_minimum_value, -1.0)
+        self.assertEqual(
+            codebook_decoder._codebook_delta_value,
+            float32_unpack(0b01100000000100000000000000000000))
+
+        self.assertEqual(codebook_decoder._codebook_value_bits, 2)
+        self.assertEqual(codebook_decoder._codebook_sequence_p, False)
+
+        self.assertEqual(codebook_decoder._codebook_lookup_values, 3)
+
+        self.assertEqual(
+            len(codebook_decoder._codebook_multiplicands),
+            codebook_decoder._codebook_lookup_values)
+        self.assertEqual(
+            codebook_decoder._codebook_multiplicands,
+            [1, 0, 2])
+
+    def test_vq_table_unpacking_lookup_type_1(self):
+        codebook_decoder = CodebookDecoder(DataReader())
+
+        codebook_decoder._codebook_multiplicands = [1, 0, 2]
+
+        codebook_decoder._codebook_minimum_value = -1.0
+        codebook_decoder._codebook_delta_value = 1.0
+
+        codebook_decoder._codebook_sequence_p = False
+        codebook_decoder._codebook_lookup_type = 1
+        codebook_decoder._codebook_entries = 81
+        codebook_decoder._codebook_dimensions = 4
+        codebook_decoder._codebook_lookup_values = 3
+
+        result_vq_lookup_table: List[List[float]] = (
+            codebook_decoder._vq_lookup_table_unpack())
+
+        self.assertEqual(len(result_vq_lookup_table), 81)
+
+        self.assertEqual(result_vq_lookup_table[0], [0.0, 0.0, 0.0, 0.0])
+        self.assertEqual(result_vq_lookup_table[1], [-1.0, 0.0, 0.0, 0.0])
+        self.assertEqual(result_vq_lookup_table[2], [1.0, 0.0, 0.0, 0.0])
+
+        self.assertEqual(result_vq_lookup_table[3], [0.0, -1.0, 0.0, 0.0])
+        self.assertEqual(result_vq_lookup_table[4], [-1.0, -1.0, 0.0, 0.0])
+        self.assertEqual(result_vq_lookup_table[5], [1.0, -1.0, 0.0, 0.0])
+
+    # Optimize: NO TEST DATA
+    def test_vq_table_unpacking_lookup_type_2(self):
+        pass
+
+    # Optimize: NO TEST DATA
+    def test_vq_table_unpacking_sequence_p_is_true(self):
+        pass
 
 
 class HuffmanTests(TestCase):
@@ -426,7 +480,6 @@ class HuffmanTests(TestCase):
             self._EXTREMELY_BIG_HUFFMAN)
 
 
-# noinspection PyMethodMayBeStatic
 class DataReaderTests(TestCase):
     def test_read_some_bytes(self):
         data_reader = DataReader(data=b'\x76\x6f\x72\x62\x69\x73')
@@ -456,7 +509,7 @@ class DataReaderTests(TestCase):
             data_reader._read_bits(8 * 3 + 1)
 
     def test_read_bits_for_unsigned_int(self):
-        data_reader = DataReader(PATH_ORDINARY_TEST_1)
+        data_reader = DataReader(PATH_TEST_1)
 
         data_reader._current_packet = b'\x32\x56'
         self.assertEqual(data_reader.read_bits_for_int(1), 0)
