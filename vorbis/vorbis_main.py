@@ -87,7 +87,9 @@ class PacketsProcessor(AbstractDecoder):
                 self._data_reader.read_packet()
                 self._read_bytes(1)
                 self._check_header_sync_pattern()
-        except EndOfPacketException:
+        except FileDataException:
+            self.close_file()
+
             raise CorruptedFileDataError(
                 "File format is not vorbis: " + filename)
 
@@ -99,14 +101,17 @@ class PacketsProcessor(AbstractDecoder):
             self._process_headers()
         except (FileDataException, BaseException) as occurred_exc:
             current_byte_position = (
-                    self._data_reader.get_packet_global_position()
-                    + self._data_reader.byte_pointer)
+                self._data_reader.get_packet_global_position()
+                + self._data_reader.byte_pointer)
 
             occurred_exc.args += (
                 f'Error occurred in [{len(self.logical_streams) - 1}] '
                 'logical stream',
                 'Error occurred on '
                 f'[{current_byte_position}] byte position')
+
+            self.close_file()
+
             raise occurred_exc
 
     def _process_headers(self):
@@ -184,37 +189,37 @@ class PacketsProcessor(AbstractDecoder):
                 raise CorruptedFileDataError(
                     '[vorbis_time_count] placeholders contain nonzero')
 
-        # Floors decoding
-        # TODO: Recheck
-        (current_stream.vorbis_floor_types,
-         current_stream.vorbis_codebook_configurations) = (
-            self._floors_decoder.read_floors(
-                len(current_stream.vorbis_codebook_configurations)))
-
-        # Residues decoding
-        # TODO: Recheck
-        (current_stream.vorbis_residue_types,
-         current_stream.vorbis_residue_configurations) = (
-            self._residues_decoder.read_residues(
-                current_stream.vorbis_codebook_configurations))
-
-        # Mappings decoding
-        # TODO: Recheck
-        current_stream.vorbis_mapping_configurations = (
-            self._mappings_decoder.read_mappings(
-                current_stream.audio_channels,
-                current_stream.vorbis_floor_types,
-                current_stream.vorbis_residue_types))
-
-        # Modes decoding
-        # TODO: Recheck
-        current_stream.vorbis_mode_configurations = self._read_modes_configs(
-            len(current_stream.vorbis_mapping_configurations))
-
-        # Framing bit check
-        if not self._read_bit():
-            raise CorruptedFileDataError(
-                'Framing bit lost while setup header decoding')
+        # # Floors decoding
+        # # TODO: Recheck
+        # (current_stream.vorbis_floor_types,
+        #  current_stream.vorbis_codebook_configurations) = (
+        #     self._floors_decoder.read_floors(
+        #         len(current_stream.vorbis_codebook_configurations)))
+        #
+        # # Residues decoding
+        # # TODO: Recheck
+        # (current_stream.vorbis_residue_types,
+        #  current_stream.vorbis_residue_configurations) = (
+        #     self._residues_decoder.read_residues(
+        #         current_stream.vorbis_codebook_configurations))
+        #
+        # # Mappings decoding
+        # # TODO: Recheck
+        # current_stream.vorbis_mapping_configurations = (
+        #     self._mappings_decoder.read_mappings(
+        #         current_stream.audio_channels,
+        #         current_stream.vorbis_floor_types,
+        #         current_stream.vorbis_residue_types))
+        #
+        # # Modes decoding
+        # # TODO: Recheck
+        # current_stream.vorbis_mode_configurations = self._read_modes_configs(
+        #     len(current_stream.vorbis_mapping_configurations))
+        #
+        # # Framing bit check
+        # if self._read_bit() != 0:
+        #     raise CorruptedFileDataError(
+        #         'Framing bit lost while setup header decoding')
 
     def _read_modes_configs(
             self, mappings_amount: int) -> List[Tuple[bool, int]]:
@@ -293,8 +298,7 @@ class PacketsProcessor(AbstractDecoder):
 
         if (
                 current_stream.blocksize_0 not in allowed_blocksizes
-                or
-                current_stream.blocksize_1 not in allowed_blocksizes):
+                or current_stream.blocksize_1 not in allowed_blocksizes):
             raise CorruptedFileDataError(
                 '[blocksize_0] or [blocksize_1] have not allowed values')
 
