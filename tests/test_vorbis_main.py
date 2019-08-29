@@ -1,7 +1,6 @@
-from unittest import TestCase
+from unittest import TestCase, main as unittest_main
 from os import path as os_path
 
-import tests.__init__  # Without this anytask won't see tests
 from vorbis.vorbis_main import PacketsProcessor, CorruptedFileDataError
 
 
@@ -130,3 +129,7 @@ class PacketsProcessorTests(TestCase):
         assert logical_stream.blocksize_1 == 2048
 
         packets_processor.close_file()
+
+
+if __name__ == '__main__':
+    unittest_main()

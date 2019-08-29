@@ -1,7 +1,6 @@
 from os import path as os_path
-from unittest import TestCase
+from unittest import TestCase, main as unittest_main
 
-import tests.__init__  # Without this anytask won't see tests
 from vorbis.ogg import PacketsReader
 
 
@@ -58,3 +57,7 @@ class PacketReadingTest(TestCase):
             assert str(raised_error) == 'File end reached'
 
         packets_reader.close_file()
+
+
+if __name__ == '__main__':
+    unittest_main()

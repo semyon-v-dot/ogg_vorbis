@@ -1,6 +1,5 @@
-from unittest import TestCase
+from unittest import TestCase, main as unittest_main
 
-import tests.__init__  # Without this anytask won't see tests
 from vorbis.helper_funcs import (
     ilog, float32_unpack, lookup1_values, bit_reverse)
 from.test_decoders import hex_str_to_bin_str
@@ -50,3 +49,7 @@ class HelperFunctionsTests(TestCase):
             hex_str_to_bin_str('23 56'),
             '0010_0011 0101_0110',
             'Ordinary case')
+
+
+if __name__ == '__main__':
+    unittest_main()

@@ -1,11 +1,11 @@
-from unittest import TestCase
+from unittest import TestCase, main as unittest_main
 from os import path as os_path
 from typing import List
 
-import tests.__init__  # Without this anytask won't see tests
 from vorbis.decoders import (
     DataReader,
     CodebookDecoder,
+    FloorsDecoder,
     EndOfPacketException)
 from vorbis.helper_funcs import float32_unpack
 
@@ -307,6 +307,132 @@ class CodebookDecoderTests(TestCase):
         pass
 
 
+class FloorsDecoderTests(TestCase):
+    def test_floor_1_decoding(self):
+        data_reader = DataReader(PATH_TEST_1)
+        codebook_decoder = CodebookDecoder(data_reader)
+
+        data_reader.read_packet()
+        data_reader.read_packet()
+        data_reader.read_packet()
+
+        data_reader.byte_pointer = 8
+
+        for i in range(44):
+            codebook_decoder.read_codebook()
+
+        self.assertEqual(
+            data_reader.get_current_global_position(), (122464, 1))
+
+        vorbis_time_count = data_reader.read_bits_for_int(6) + 1
+
+        for i in range(vorbis_time_count):
+            placeholder = data_reader.read_bits_for_int(16)
+
+            self.assertEqual(placeholder, 0)
+
+        self.assertEqual(
+            data_reader.get_current_global_position(), (122466, 7))
+
+        #       80 20 |                     1000_0000 0010_0000
+        # 00 C0 40 84 | 0000_0000 1100_0000 0100_0000 1000_0100
+        # CC 04 02 05 | 1100_1100 0000_0100 0000_0010 0000_0101
+        # 50 60 20 03 | 0101_0000 0110_0000 0010_0000 0000_0011
+        # 00 0E 10 12 | 0000_0000 0000_1110 0001_0000 0001_0010
+        # A4 00 80 C2 | 1010_0100 0000_0000 1000_0000 1100_0010
+        # 02 43 C7 70 | 0000_0010 0100_0011 1100_0111 0111_0000
+        # 11 10 90 4B | 0001_0001 0001_0000 1001_0000 0100_1011
+        # C8 28 30 28 | 1100_1000 0010_1000 0011_0000 0010_1000
+        # 1C 13 CE 49 | 0001_1100 0001_0011 1100_1110 0100_1001
+        # A7 0D 00 40 | 1010_0111 0000_1101 0000_0000 0100_0000
+        # 10 22 33 44 | 0001_0000 0010_0010 0011_0011 0100_0100
+        # 22 62 31 48 | 0010_0010 0110_0010 0011_0001 0100_1000
+        # 4C A8 06 8A | 0100_1100 1010_1000 0000_0110 1000_1010
+        # 8A E9 00 60 | 1000_1010 1110_1001 0000_0000 0110_0000
+        # 71 81 21 1F | 0111_0001 1000_0001 0010_0001 0001_1111
+        #
+        # [bitstream]
+        # (1) [000_0000]-> previous things
+        # (001) [0_0000|1]-> vorbis_floor_count
+        # (0000_0000|001)
+        # (110) [0_0000|0000_0000||001]-> vorbis_floor_types[0]
+        # (01) [00_00] [00|110]-> floor1_partitions
+        # (10) [00_01] [00|01]
+        # (11) [00_11] [00|10]
+        # 0000_01 [00|11]
+        # 0000_0010
+        # 0000_0101
+        # 0101_0000
+        # 0110_0000
+        # 0010_0000
+        # 0000_0011
+        # 0000_0000
+        # 0000_1110
+        # 0001_0000
+        # 0001_0010
+        # 1010_0100
+        # 0000_0000
+        # 1000_0000
+        # 1100_0010
+        # 0000_0010
+        # 0100_0011
+        # 1100_0111
+        # 0111_0000
+        # 0001_0001
+        # 0001_0000
+        # 1001_0000
+        # 0100_1011
+        # 1100_1000
+        # 0010_1000
+        # 0011_0000
+        # 0010_1000
+        # 0001_1100
+        # 0001_0011
+        # 1100_1110
+        # 0100_1001
+        # 1010_0111
+        # 0000_1101
+        # 0000_0000
+        # 0100_0000
+        # 0001_0000
+        # 0010_0010
+        # 0011_0011
+        # 0100_0100
+        # 0010_0010
+        # 0110_0010
+        # 0011_0001
+        # 0100_1000
+        # 0100_1100
+        # 1010_1000
+        # 0000_0110
+        # 1000_1010
+        # 1000_1010
+        # 1110_1001
+        # 0000_0000
+        # 0110_0000
+        # 0111_0001
+        # 1000_0001
+        # 0010_0001
+        # 0001_1111
+        #
+        #
+
+        # Floors count
+        self.assertEqual(data_reader.read_bits_for_int(6) + 1, 2)
+
+        # First floor's type
+        self.assertEqual(data_reader.read_bits_for_int(16), 1)
+
+        floors_decoder: FloorsDecoder = FloorsDecoder(data_reader)
+
+        first_floor_data: FloorsDecoder.FloorData = (
+            floors_decoder._decode_floor_config_type_1(44))
+
+        self.assertEqual(
+            first_floor_data.floor1_partition_class_list,
+            [0, 1, 1, 2, 3, 3])
+
+
 class HuffmanTests(TestCase):
     _codebook_decoder: CodebookDecoder = CodebookDecoder(DataReader())
 
@@ -525,3 +651,7 @@ class DataReaderTests(TestCase):
             data_reader.read_bits_for_int(8, signed=True), -116)
         self.assertEqual(
             data_reader.read_bits_for_int(5, signed=True), -11)
+
+
+if __name__ == '__main__':
+    unittest_main()
