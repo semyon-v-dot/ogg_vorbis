@@ -99,7 +99,7 @@ if __name__ == '__main__':
             version=_CURRENT_VERSION)
 
         parser.add_argument(
-            '--explain',
+            '-e', '--explain',
             help='show explanations in output about headers data',
             action='store_true')
 
@@ -133,17 +133,17 @@ if __name__ == '__main__':
     if not (arguments.ident or arguments.comment or arguments.setup):
         arguments.ident = arguments.comment = True
 
-    # if arguments.ident:
-    #     _PRINT_HEADER_SWITCH['ident'](
-    #         packets_processor.logical_streams[0],
-    #         arguments.explain)
-    # if arguments.comment:
-    #     _PRINT_HEADER_SWITCH['comment'](
-    #         packets_processor.logical_streams[0],
-    #         arguments.explain)
-    # if arguments.setup:
-    #     _PRINT_HEADER_SWITCH['setup'](
-    #         packets_processor.logical_streams[0],
-    #         arguments.explain)
+    if arguments.ident:
+        _PRINT_HEADER_SWITCH['ident'](
+            packets_processor.logical_streams[0],
+            arguments.explain)
+    if arguments.comment:
+        _PRINT_HEADER_SWITCH['comment'](
+            packets_processor.logical_streams[0],
+            arguments.explain)
+    if arguments.setup:
+        _PRINT_HEADER_SWITCH['setup'](
+            packets_processor.logical_streams[0],
+            arguments.explain)
 
     packets_processor.close_file()
