@@ -2,7 +2,7 @@ from unittest import TestCase
 from os import path as os_path
 
 import tests.__init__  # Without this anytask won't see tests
-from vorbis.vorbis_main import PacketsProcessor
+from vorbis.vorbis_main import PacketsProcessor, CorruptedFileDataError
 
 
 PATH_ORDINARY_TEST_1 = os_path.join(
@@ -10,13 +10,50 @@ PATH_ORDINARY_TEST_1 = os_path.join(
     'test_audiofiles',
     'test_1.ogg')
 
+PATH_TEST_WRONG_OGG_FILE = os_path.join(
+    os_path.dirname(os_path.abspath(__file__)),
+    'test_audiofiles',
+    'test_wrong_ogg_file.ogg')
+
+PATH_TEST_WRONG_VORBIS_FILE = os_path.join(
+    os_path.dirname(os_path.abspath(__file__)),
+    'test_audiofiles',
+    'test_wrong_vorbis_file.ogg')
+
 
 # noinspection PyMethodMayBeStatic
 class PacketsProcessorTests(TestCase):
+    def test_ogg_not_vorbis_file(self):
+        with self.assertRaises(CorruptedFileDataError) as occurred_err:
+            PacketsProcessor(PATH_TEST_WRONG_OGG_FILE)
+
+        self.assertEqual(
+            occurred_err.exception.__class__,
+            CorruptedFileDataError)
+
+        self.assertEqual(
+            occurred_err.exception.args[0],
+            "File format is not vorbis: " + PATH_TEST_WRONG_OGG_FILE)
+
+    def test_corrupted_vorbis_file(self):
+        with self.assertRaises(CorruptedFileDataError) as occurred_err:
+            PacketsProcessor(PATH_TEST_WRONG_VORBIS_FILE).process_headers()
+
+        self.assertEqual(
+            occurred_err.exception.__class__,
+            CorruptedFileDataError)
+
+        self.assertEqual(len(occurred_err.exception.args), 3)
+        self.assertEqual(
+            occurred_err.exception.args[0],
+            'Identification header is lost')
+
     def test_process_headers(self):
         packets_processor = PacketsProcessor(PATH_ORDINARY_TEST_1)
 
         packets_processor.process_headers()
+
+        packets_processor.close_file()
 
     def test_ident_header_processing(self):
         packets_processor = PacketsProcessor(PATH_ORDINARY_TEST_1)
@@ -91,3 +128,5 @@ class PacketsProcessorTests(TestCase):
         assert logical_stream.bitrate_minimum == 0
         assert logical_stream.blocksize_0 == 256
         assert logical_stream.blocksize_1 == 2048
+
+        packets_processor.close_file()
