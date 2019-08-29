@@ -206,5 +206,3 @@ def exit_with_exception(info_for_user: str, input_exception: Exception):
     (exception name) + ': ' + (exception args)"""
     print(info_for_user)
     sys_exit(input_exception.__class__.__name__ + ": " + str(input_exception))
-
-

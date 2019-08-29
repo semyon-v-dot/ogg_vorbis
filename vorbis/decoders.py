@@ -132,7 +132,7 @@ class CodebookDecoder(AbstractDecoder):
                     self._codebook_entries, self._codebook_dimensions)
             else:
                 self._codebook_lookup_values = (
-                        self._codebook_entries * self._codebook_dimensions)
+                    self._codebook_entries * self._codebook_dimensions)
 
             self._codebook_multiplicands = []
             for i in range(self._codebook_lookup_values):
@@ -229,10 +229,10 @@ class CodebookDecoder(AbstractDecoder):
 
             codeword: str = bin(bit_reverse(result))[2:]
             codeword = (
-                    ''.zfill(
-                        self._codebook_codewords_lengths[i] - len(
-                            codeword))
-                    + codeword)
+                ''.zfill(
+                    self._codebook_codewords_lengths[i] - len(
+                        codeword))
+                + codeword)
             result_codewords.append(codeword[::-1])
 
             if max_available_branch != self._codebook_codewords_lengths[i]:
@@ -242,7 +242,7 @@ class CodebookDecoder(AbstractDecoder):
                         -1):
                     assert available[new_branch] == 0
                     available[new_branch] = result + (
-                            1 << (32 - new_branch))
+                        1 << (32 - new_branch))
 
         return result_codewords
 
@@ -326,9 +326,9 @@ class CodebookDecoder(AbstractDecoder):
             while '0' in bfc_value:
                 for value in return_values:
                     prefix_length = min(len(value), len(bfc_value))
-                    if prefix_length != 0 and \
-                            value[:prefix_length] == bfc_value[
-                                                     :prefix_length]:
+                    if (prefix_length != 0
+                        and value[:prefix_length]
+                            == bfc_value[:prefix_length]):
                         break
                 else:
                     break
@@ -368,7 +368,6 @@ class CodebookDecoder(AbstractDecoder):
 
 class FloorsDecoder(AbstractDecoder):
     class FloorData:
-        # TODO: Vars explanations
         floor1_partition_class_list: List[int] = []
         floor1_class_dimensions: List[int] = []
         floor1_class_subclasses: List[int] = []
@@ -376,6 +375,7 @@ class FloorsDecoder(AbstractDecoder):
         floor1_subclass_books: List[List[int]] = []
         floor1_multiplier: int
         floor1_x_list: List[int] = []
+        floor1_values: int
 
     def __init__(self, data_reader: 'DataReader'):
         super().__init__(data_reader)
@@ -401,8 +401,7 @@ class FloorsDecoder(AbstractDecoder):
 
             else:
                 raise CorruptedFileDataError(
-                    'Not supported floor type: '
-                    + str(vorbis_floor_types[i]))
+                    f'Not supported floor type: {vorbis_floor_types[i]}')
 
         return vorbis_floor_types, vorbis_floor_configurations
 
@@ -422,10 +421,6 @@ class FloorsDecoder(AbstractDecoder):
         result_data: 'FloorsDecoder.FloorData' = self.FloorData()
 
         floor1_partitions = self._read_bits_for_int(5)
-        # maximum_class = -1  # Line from docs
-        # '_read_bits_for_int' gives unsigned int values, so min value is 0.
-        # Then no need to include 0 to 'max' function below with
-        # 'maximum_class'
 
         for i in range(floor1_partitions):
             result_data.floor1_partition_class_list.append(
@@ -456,6 +451,7 @@ class FloorsDecoder(AbstractDecoder):
 
         range_bits = self._read_bits_for_int(4)
         result_data.floor1_x_list = [0, 1 << range_bits]
+        result_data.floor1_values = 2
 
         for i in range(floor1_partitions):
             current_class_number = result_data.floor1_partition_class_list[i]
@@ -464,6 +460,7 @@ class FloorsDecoder(AbstractDecoder):
                     result_data.floor1_class_dimensions[current_class_number]):
                 result_data.floor1_x_list.append(
                     self._read_bits_for_int(range_bits))
+                result_data.floor1_values += 1
 
         if any(item > codebooks_amount for item in
                result_data.floor1_class_masterbooks):
@@ -486,7 +483,7 @@ class FloorsDecoder(AbstractDecoder):
         if (len(result_data.floor1_x_list)
                 != len(set(result_data.floor1_x_list))):
             raise CorruptedFileDataError(
-                '[floor1_X_list] have non unique elements: '
+                '[floor1_X_list] have not unique elements: '
                 + str(result_data.floor1_x_list))
 
         return result_data
@@ -494,7 +491,6 @@ class FloorsDecoder(AbstractDecoder):
 
 class ResiduesDecoder(AbstractDecoder):
     class ResidueData:
-        # TODO: Vars explanations
         residue_begin: int
         residue_end: int
         residue_partition_size: int
@@ -508,96 +504,96 @@ class ResiduesDecoder(AbstractDecoder):
     def __init__(self, data_reader: 'DataReader'):
         super().__init__(data_reader)
 
-    def read_residues(
-            self,
-            codebook_configs: List[CodebookDecoder.CodebookData]
-            ) -> Tuple[List[int], List[ResidueData]]:
-        """Returns tuple of residues types AND related residues' data
-
-        Input data from current logical stream"""
-        self._codebooks_configs = codebook_configs
-
-        vorbis_residue_types: List[int] = []
-        vorbis_residue_configurations: List['ResiduesDecoder.ResidueData'] = []
-
-        for i in range(self._read_bits_for_int(6) + 1):
-            vorbis_residue_types.append(self._read_bits_for_int(16))
-
-            if 0 <= vorbis_residue_types[i] < 3:
-                vorbis_residue_configurations.append(
-                    self._decode_residue_config())
-            else:
-                raise CorruptedFileDataError(
-                    'Not supported residue type: '
-                    + str(vorbis_residue_types[i]))
-
-        return vorbis_residue_types, vorbis_residue_configurations
-
-    # TODO: A bit of unclear code
-    def _decode_residue_config(self) -> ResidueData:
-        """Method decodes residue configuration"""
-        result_data: 'ResiduesDecoder.ResidueData' = self.ResidueData()
-
-        result_data.residue_begin = self._read_bits_for_int(24)
-        result_data.residue_end = self._read_bits_for_int(24)
-        result_data.residue_partition_size = self._read_bits_for_int(24) + 1
-        result_data.residue_classifications = self._read_bits_for_int(6) + 1
-        result_data.residue_classbook = self._read_bits_for_int(8)
-
-        if result_data.residue_classbook > len(self._codebooks_configs):
-            raise CorruptedFileDataError(
-                'Received incorrect [residue_classbook]'
-                + str(result_data.residue_classbook))
-
-        # If [residue_classifications]ˆ[residue_classbook].dimensions exceeds
-        # [residue_classbook].entries, the bitstream should be regarded to be
-        # undecodable. ???
-
-        result_data.residue_cascade = []
-
-        for i in range(result_data.residue_classifications):
-            low_bits: int = self._read_bits_for_int(3)
-            bitflag: bool = bool(self._read_bit())
-            high_bits: int = 0
-
-            if bitflag:
-                high_bits = self._read_bits_for_int(5)
-
-            result_data.residue_cascade.append(high_bits * 8 + low_bits)
-
-        result_data.residue_books = []
-
-        for i in range(result_data.residue_classifications):
-            result_data.residue_books.append([])
-
-            for j in range(8):
-                if (result_data.residue_cascade[i] & (1 << j)) != 0:
-                    result_data.residue_books[i].append(
-                        self._read_bits_for_int(8))
-
-                    if (result_data.residue_books[i][j]
-                            > len(self._codebooks_configs)):
-                        raise CorruptedFileDataError(
-                            'Received incorrect [residue_books] item, '
-                            'value is greater than codebook number: '
-                            + str(result_data.residue_books[i][j]))
-
-                    if (self._codebooks_configs[
-                        result_data.residue_books[i][j]].codebook_lookup_type
-                            == 0):
-                        raise CorruptedFileDataError(
-                            'Received incorrect [residue_books] item, '
-                            'lookup_type is zero: '
-                            + str(result_data.residue_books[i][j]))
-                else:
-                    result_data.residue_books[i].append(-1)
-
-        return result_data
+    # def read_residues(
+    #         self,
+    #         codebook_configs: List[CodebookDecoder.CodebookData]
+    #         ) -> Tuple[List[int], List[ResidueData]]:
+    #     """Returns tuple of residues types AND related residues' data
+    #
+    #     Input data from current logical stream"""
+    #     self._codebooks_configs = codebook_configs
+    #
+    #     vorbis_residue_types: List[int] = []
+    #     vorbis_residue_configurations: (
+    #     List['ResiduesDecoder.ResidueData']) = []
+    #
+    #     for i in range(self._read_bits_for_int(6) + 1):
+    #         vorbis_residue_types.append(self._read_bits_for_int(16))
+    #
+    #         if 0 <= vorbis_residue_types[i] < 3:
+    #             vorbis_residue_configurations.append(
+    #                 self._decode_residue_config())
+    #         else:
+    #             raise CorruptedFileDataError(
+    #                 'Not supported residue type: '
+    #                 + str(vorbis_residue_types[i]))
+    #
+    #     return vorbis_residue_types, vorbis_residue_configurations
+    #
+    # # TODO: A bit of unclear code
+    # def _decode_residue_config(self) -> ResidueData:
+    #     """Method decodes residue configuration"""
+    #     result_data: 'ResiduesDecoder.ResidueData' = self.ResidueData()
+    #
+    #     result_data.residue_begin = self._read_bits_for_int(24)
+    #     result_data.residue_end = self._read_bits_for_int(24)
+    #     result_data.residue_partition_size = self._read_bits_for_int(24) + 1
+    #     result_data.residue_classifications = self._read_bits_for_int(6) + 1
+    #     result_data.residue_classbook = self._read_bits_for_int(8)
+    #
+    #     if result_data.residue_classbook > len(self._codebooks_configs):
+    #         raise CorruptedFileDataError(
+    #             'Received incorrect [residue_classbook]'
+    #             + str(result_data.residue_classbook))
+    #
+    #     # If [residue_classifications]ˆ[residue_classbook].dimensions exceeds
+    #     # [residue_classbook].entries, the bitstream should be regarded to be
+    #     # undecodable. ???
+    #
+    #     result_data.residue_cascade = []
+    #
+    #     for i in range(result_data.residue_classifications):
+    #         low_bits: int = self._read_bits_for_int(3)
+    #         bitflag: bool = bool(self._read_bit())
+    #         high_bits: int = 0
+    #
+    #         if bitflag:
+    #             high_bits = self._read_bits_for_int(5)
+    #
+    #         result_data.residue_cascade.append(high_bits * 8 + low_bits)
+    #
+    #     result_data.residue_books = []
+    #
+    #     for i in range(result_data.residue_classifications):
+    #         result_data.residue_books.append([])
+    #
+    #         for j in range(8):
+    #             if (result_data.residue_cascade[i] & (1 << j)) != 0:
+    #                 result_data.residue_books[i].append(
+    #                     self._read_bits_for_int(8))
+    #
+    #                 if (result_data.residue_books[i][j]
+    #                         > len(self._codebooks_configs)):
+    #                     raise CorruptedFileDataError(
+    #                         'Received incorrect [residue_books] item, '
+    #                         'value is greater than codebook number: '
+    #                         + str(result_data.residue_books[i][j]))
+    #
+    #                 if (self._codebooks_configs[
+    #                     result_data.residue_books[i][j]].codebook_lookup_type
+    #                         == 0):
+    #                     raise CorruptedFileDataError(
+    #                         'Received incorrect [residue_books] item, '
+    #                         'lookup_type is zero: '
+    #                         + str(result_data.residue_books[i][j]))
+    #             else:
+    #                 result_data.residue_books[i].append(-1)
+    #
+    #     return result_data
 
 
 class MappingsDecoder(AbstractDecoder):
     class MappingData:
-        # TODO: Vars explanations
         vorbis_mapping_submaps: int
         vorbis_mapping_coupling_steps: int
         vorbis_mapping_magnitude: List[int]
@@ -613,104 +609,109 @@ class MappingsDecoder(AbstractDecoder):
     def __init__(self, data_reader: 'DataReader'):
         super().__init__(data_reader)
 
-    def read_mappings(
-            self,
-            audio_channels: int,
-            floor_types: List[int],
-            residue_types: List[int]) -> List[MappingData]:
-        """Method processes mappings for current logical bitstream
-
-        Input data from current logical stream"""
-        self._audio_channels = audio_channels
-        self._max_floor_type = max(floor_types)
-        self._max_residue_type = max(residue_types)
-
-        vorbis_mapping_configurations: List['MappingsDecoder.MappingData'] = []
-
-        for i in range(self._read_bits_for_int(6) + 1):
-            vorbis_mapping_configurations.append(self._decode_mapping_config())
-
-        return vorbis_mapping_configurations
-
-    def _decode_mapping_config(self) -> MappingData:
-        result_data: 'MappingsDecoder.MappingData' = self.MappingData()
-
-        mapping_type = self._read_bits_for_int(16)  # Line from docs
-
-        if mapping_type != 0:
-            raise CorruptedFileDataError('Nonzero mapping type')
-
-        result_data.vorbis_mapping_submaps = 1
-
-        if bool(self._read_bit()):
-            result_data.vorbis_mapping_submaps = self._read_bits_for_int(4) + 1
-
-        result_data.vorbis_mapping_coupling_steps = 0
-        result_data.vorbis_mapping_magnitude = []
-        result_data.vorbis_mapping_angle = []
-
-        if self._read_bit():
-            vorbis_mapping_coupling_steps = self._read_bits_for_int(8) + 1
-
-            for j in range(vorbis_mapping_coupling_steps):
-                result_data.vorbis_mapping_magnitude.append(
-                    self._read_bits_for_int(
-                        ilog(self._audio_channels - 1)))
-                result_data.vorbis_mapping_angle.append(
-                    self._read_bits_for_int(
-                        ilog(self._audio_channels - 1)))
-
-                if (result_data.vorbis_mapping_angle[j]
-                        == result_data.vorbis_mapping_magnitude[j]
-                        or result_data.vorbis_mapping_magnitude[j]
-                        > self._audio_channels - 1
-                        or result_data.vorbis_mapping_angle[j]
-                        > self._audio_channels - 1):
-                    raise CorruptedFileDataError(
-                        'Received incorrect [vorbis_mapping_angle] '
-                        'or [vorbis_mapping_magnitude] item(s)')
-
-        reserved_field = self._read_bits_for_int(2)  # Line from docs
-
-        if reserved_field != 0:
-            raise CorruptedFileDataError('[reserved_field] is nonzero')
-
-        result_data.vorbis_mapping_mux = []
-
-        if result_data.vorbis_mapping_submaps > 1:
-            for j in range(self._audio_channels):
-                result_data.vorbis_mapping_mux.append(
-                    self._read_bits_for_int(4))
-
-                if (result_data.vorbis_mapping_mux
-                        > result_data.vorbis_mapping_submaps - 1):  # TODO: ???
-                    raise CorruptedFileDataError(
-                        'Received incorrect [vorbis_mapping_mux] item')
-
-        result_data.vorbis_mapping_submap_floor = []
-        result_data.vorbis_mapping_submap_residue = []
-
-        for j in range(result_data.vorbis_mapping_submaps):
-            self._read_bits_for_int(8)  # Line from docs  # Placeholder
-            result_data.vorbis_mapping_submap_floor.append(
-                self._read_bits_for_int(8))
-
-            if (result_data.vorbis_mapping_submap_floor[j]
-                    > self._max_floor_type):
-                raise CorruptedFileDataError(
-                    'Received incorrect [vorbis_mapping_submap_floor] '
-                    'item: ' + str(result_data.vorbis_mapping_submap_floor[j]))
-
-            result_data.vorbis_mapping_submap_residue.append(
-                self._read_bits_for_int(8))
-
-            if (result_data.vorbis_mapping_submap_residue[j]
-                    > self._max_residue_type):
-                raise CorruptedFileDataError(
-                    'Received incorrect [vorbis_mapping_submap_residue] item: '
-                    + str(result_data.vorbis_mapping_submap_residue[j]))
-
-        return result_data
+    # def read_mappings(
+    #         self,
+    #         audio_channels: int,
+    #         floor_types: List[int],
+    #         residue_types: List[int]) -> List[MappingData]:
+    #     """Method processes mappings for current logical bitstream
+    #
+    #     Input data from current logical stream"""
+    #     self._audio_channels = audio_channels
+    #     self._max_floor_type = max(floor_types)
+    #     self._max_residue_type = max(residue_types)
+    #
+    #     vorbis_mapping_configurations: (
+    #     List['MappingsDecoder.MappingData']) = []
+    #
+    #     for i in range(self._read_bits_for_int(6) + 1):
+    #         vorbis_mapping_configurations.append(
+    #             self._decode_mapping_config())
+    #
+    #     return vorbis_mapping_configurations
+    #
+    # def _decode_mapping_config(self) -> MappingData:
+    #     result_data: 'MappingsDecoder.MappingData' = self.MappingData()
+    #
+    #     mapping_type = self._read_bits_for_int(16)  # Line from docs
+    #
+    #     if mapping_type != 0:
+    #         raise CorruptedFileDataError('Nonzero mapping type')
+    #
+    #     result_data.vorbis_mapping_submaps = 1
+    #
+    #     if bool(self._read_bit()):
+    #         result_data.vorbis_mapping_submaps = (
+    #             self._read_bits_for_int(4) + 1)
+    #
+    #     result_data.vorbis_mapping_coupling_steps = 0
+    #     result_data.vorbis_mapping_magnitude = []
+    #     result_data.vorbis_mapping_angle = []
+    #
+    #     if self._read_bit():
+    #         vorbis_mapping_coupling_steps = self._read_bits_for_int(8) + 1
+    #
+    #         for j in range(vorbis_mapping_coupling_steps):
+    #             result_data.vorbis_mapping_magnitude.append(
+    #                 self._read_bits_for_int(
+    #                     ilog(self._audio_channels - 1)))
+    #             result_data.vorbis_mapping_angle.append(
+    #                 self._read_bits_for_int(
+    #                     ilog(self._audio_channels - 1)))
+    #
+    #             if (result_data.vorbis_mapping_angle[j]
+    #                     == result_data.vorbis_mapping_magnitude[j]
+    #                     or result_data.vorbis_mapping_magnitude[j]
+    #                     > self._audio_channels - 1
+    #                     or result_data.vorbis_mapping_angle[j]
+    #                     > self._audio_channels - 1):
+    #                 raise CorruptedFileDataError(
+    #                     'Received incorrect [vorbis_mapping_angle] '
+    #                     'or [vorbis_mapping_magnitude] item(s)')
+    #
+    #     reserved_field = self._read_bits_for_int(2)  # Line from docs
+    #
+    #     if reserved_field != 0:
+    #         raise CorruptedFileDataError('[reserved_field] is nonzero')
+    #
+    #     result_data.vorbis_mapping_mux = []
+    #
+    #     if result_data.vorbis_mapping_submaps > 1:
+    #         for j in range(self._audio_channels):
+    #             result_data.vorbis_mapping_mux.append(
+    #                 self._read_bits_for_int(4))
+    #
+    #             # TODO: ???
+    #             if (result_data.vorbis_mapping_mux
+    #                     > result_data.vorbis_mapping_submaps - 1):
+    #                 raise CorruptedFileDataError(
+    #                     'Received incorrect [vorbis_mapping_mux] item')
+    #
+    #     result_data.vorbis_mapping_submap_floor = []
+    #     result_data.vorbis_mapping_submap_residue = []
+    #
+    #     for j in range(result_data.vorbis_mapping_submaps):
+    #         self._read_bits_for_int(8)  # Line from docs  # Placeholder
+    #         result_data.vorbis_mapping_submap_floor.append(
+    #             self._read_bits_for_int(8))
+    #
+    #         if (result_data.vorbis_mapping_submap_floor[j]
+    #                 > self._max_floor_type):
+    #             raise CorruptedFileDataError(
+    #                 'Received incorrect [vorbis_mapping_submap_floor] item: '
+    #                 + str(result_data.vorbis_mapping_submap_floor[j]))
+    #
+    #         result_data.vorbis_mapping_submap_residue.append(
+    #             self._read_bits_for_int(8))
+    #
+    #         if (result_data.vorbis_mapping_submap_residue[j]
+    #                 > self._max_residue_type):
+    #             raise CorruptedFileDataError(
+    #                 'Received incorrect [vorbis_mapping_submap_residue] '
+    #                 'item: '
+    #                 + str(result_data.vorbis_mapping_submap_residue[j]))
+    #
+    #     return result_data
 
 
 class DataReader:
