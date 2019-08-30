@@ -1,6 +1,9 @@
-from sys import version_info as sys_version_info, exit as sys_exit
+from os import (
+    pardir as os_pardir,
+    path as os_path)
+from sys import path as sys_path
 
 
-if (sys_version_info.major < 3
-        or (sys_version_info.major == 3 and sys_version_info.minor < 7)):
-    sys_exit('Python version 3.7 or upper is required')
+sys_path.append(os_path.join(
+    os_path.dirname(os_path.abspath(__file__)),
+    os_pardir))
