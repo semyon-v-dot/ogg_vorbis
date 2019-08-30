@@ -2,6 +2,7 @@ from os import path as os_path
 from io import BytesIO
 from ntpath import basename as ntpath_basename
 from tkinter import (
+    Tk as tk_Tk,
     Frame as tk_Frame,
     Canvas as tk_Canvas,
     Button as tk_Button,
@@ -15,10 +16,19 @@ from tkinter.ttk import (
 from PIL import Image as pil_Image
 from PIL.ImageTk import PhotoImage as pil_PhotoImage
 from contextlib import redirect_stdout as clib_redirect_stdout
+from typing import Optional
+from argparse import ArgumentParser, Namespace
+
+from vorbis.vorbis_main import PacketsProcessor, CorruptedFileDataError
+from .console_ui import (
+    get_current_version, init_packets_processor, exit_with_exception)
+
 with clib_redirect_stdout(None):
     from pygame.mixer import (
         music as pygame_music,
-        Sound as pygame_Sound)
+        Sound as pygame_Sound,
+        pre_init as pygame_mixer_pre_init,
+        init as pygame_mixer_init)
 
 
 class InfoNotebook(ttk_Notebook):
@@ -218,3 +228,90 @@ class AudioToolbarFrame(tk_Frame):
             self._time_scale_var.set(0)
 
         root.after(100, self.time_scale_tick, root)
+
+
+def run_graphics_launcher():
+    _CURRENT_VERSION: Optional[str] = None
+    try:
+        _CURRENT_VERSION = get_current_version()
+    except OSError as occurred_exc:
+        exit_with_exception(
+            'Cannot read "data.ini" file',
+            occurred_exc)
+
+    if _CURRENT_VERSION is None:
+        exit_with_exception(
+            'Error during "data.ini" file reading',
+            CorruptedFileDataError("Cannot get version"))
+
+    def _parse_arguments() -> Namespace:
+        parser = ArgumentParser(
+            description='Processes .ogg audiofile with vorbis coding and '
+                        'plays it',
+            usage='launcher_console.py [options] filepath')
+
+        parser.add_argument(
+            '-v', '--version',
+            help="print program's current version number and exit",
+            action='version',
+            version=_CURRENT_VERSION)
+
+        parser.add_argument(
+            'filepath',
+            help='path to .ogg audiofile',
+            type=str)
+
+        return parser.parse_args()
+
+    arguments: Namespace = _parse_arguments()
+
+    packets_processor: PacketsProcessor = init_packets_processor(
+        arguments.filepath)
+
+    pygame_mixer_pre_init(44100, -16, 2, 2048)
+    pygame_mixer_init()
+
+    root = tk_Tk()
+    root.title("Ogg Vorbis")
+    root.minsize(width=375, height=400)
+    root.rowconfigure(0, weight=1)
+    root.rowconfigure(1, weight=0)
+    root.columnconfigure(0, weight=1)
+
+    raw_image_info = ('', b'')
+    if (hasattr(packets_processor.logical_streams[0],
+                'user_comment_list_strings')):
+        coverart_index = -1
+        for i, comment_str in enumerate(
+                packets_processor.logical_streams[0]
+                .user_comment_list_strings):
+            if (comment_str.startswith('COVERARTMIME=')
+                    and len(packets_processor.logical_streams[0]
+                            .user_comment_list_strings) > i + 1
+                    and (packets_processor.logical_streams[0]
+                         .user_comment_list_strings[i + 1]
+                         .startswith('COVERART='))):
+                coverart_index = i
+                break
+        if coverart_index != -1:
+            raw_image_info = (
+                packets_processor.logical_streams[0]
+                .user_comment_list_strings[coverart_index],
+                packets_processor.logical_streams[0]
+                .user_comment_list_strings[coverart_index + 1]
+                .encode()[9:])
+
+    info_notebook = InfoNotebook(
+        coverart_info=raw_image_info,
+        filepath=arguments.filepath,
+        master=root,
+        padding=(0, 0))
+
+    toolbar_frame = AudioToolbarFrame(
+        master=root,
+        background='blue',
+        filepath=arguments.filepath)
+
+    toolbar_frame.time_scale_tick(root)
+
+    root.mainloop()
