@@ -1,3 +1,5 @@
+.idea/
+
 # pytest, pytest-cov
 .coverage
 __pycache__/
