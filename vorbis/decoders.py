@@ -405,7 +405,7 @@ class FloorsDecoder(AbstractDecoder):
 
         return vorbis_floor_types, vorbis_floor_configurations
 
-    # WouldBeBetter: Check docstring for details
+    # WouldBeBetter: Floor config type 0 decoding. Check docstring for details
     def _decode_floor_config_type_0(self) -> FloorData:
         """Method decodes floor configuration type 0
 
@@ -428,6 +428,7 @@ class FloorsDecoder(AbstractDecoder):
                 self._read_bits_for_int(4))
 
         maximum_class = max(result_data.floor1_partition_class_list)
+
         result_data.floor1_class_dimensions = []
         result_data.floor1_class_subclasses = []
         result_data.floor1_class_masterbooks = []
