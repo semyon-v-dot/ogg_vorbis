@@ -58,7 +58,7 @@ class PacketsProcessor(AbstractDecoder):
 
         vorbis_mapping_configurations: List[MappingsDecoder.MappingData]
 
-        vorbis_mode_configurations: Tuple[bool, int]
+        vorbis_mode_configurations: List[Tuple[bool, int]]
 
         def __init__(self, input_byte_position: int):
             self.byte_position = input_byte_position
@@ -68,7 +68,7 @@ class PacketsProcessor(AbstractDecoder):
     _residues_decoder: ResiduesDecoder
     _mappings_decoder: MappingsDecoder
 
-    logical_streams: List[LogicalStream] = []
+    logical_streams: List[LogicalStream]
 
     def __init__(self, filename: str):
         self._data_reader: DataReader = DataReader(filename)
@@ -77,6 +77,7 @@ class PacketsProcessor(AbstractDecoder):
 
         self._basic_file_format_check(filename)
 
+        self.logical_streams = []
         self._codebook_decoder = CodebookDecoder(self._data_reader)
         self._floors_decoder = FloorsDecoder(self._data_reader)
 
@@ -161,7 +162,7 @@ class PacketsProcessor(AbstractDecoder):
         except EOFError:
             self._data_reader.restart_file_reading()
 
-    # TODO
+    # TODO: '_process_setup_header'
     def _process_setup_header(self):
         """Processes setup header info
 
