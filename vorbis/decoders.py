@@ -368,13 +368,13 @@ class CodebookDecoder(AbstractDecoder):
 
 class FloorsDecoder(AbstractDecoder):
     class FloorData:
-        floor1_partition_class_list: List[int] = []
-        floor1_class_dimensions: List[int] = []
-        floor1_class_subclasses: List[int] = []
-        floor1_class_masterbooks: List[int] = []
-        floor1_subclass_books: List[List[int]] = []
+        floor1_partition_class_list: List[int]
+        floor1_class_dimensions: List[int]
+        floor1_class_subclasses: List[int]
+        floor1_class_masterbooks: List[int]
+        floor1_subclass_books: List[List[int]]
         floor1_multiplier: int
-        floor1_x_list: List[int] = []
+        floor1_x_list: List[int]
         floor1_values: int
 
     def __init__(self, data_reader: 'DataReader'):
@@ -421,12 +421,17 @@ class FloorsDecoder(AbstractDecoder):
         result_data: 'FloorsDecoder.FloorData' = self.FloorData()
 
         floor1_partitions = self._read_bits_for_int(5)
+        result_data.floor1_partition_class_list = []
 
         for i in range(floor1_partitions):
             result_data.floor1_partition_class_list.append(
                 self._read_bits_for_int(4))
 
         maximum_class = max(result_data.floor1_partition_class_list)
+        result_data.floor1_class_dimensions = []
+        result_data.floor1_class_subclasses = []
+        result_data.floor1_class_masterbooks = []
+        result_data.floor1_subclass_books = []
 
         for i in range(maximum_class + 1):
             result_data.floor1_class_dimensions.append(
@@ -448,7 +453,6 @@ class FloorsDecoder(AbstractDecoder):
                     self._read_bits_for_int(8) - 1)
 
         result_data.floor1_multiplier = self._read_bits_for_int(2) + 1
-
         range_bits = self._read_bits_for_int(4)
         result_data.floor1_x_list = [0, 1 << range_bits]
         result_data.floor1_values = 2
