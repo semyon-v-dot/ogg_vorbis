@@ -340,7 +340,7 @@ def run_console_launcher():
     arguments: Namespace = _parse_arguments()
 
     packets_processor: PacketsProcessor = init_packets_processor(
-        arguments.filepath, arguments.debug)
+        arguments.filepath, arguments)
 
     if not (arguments.ident or arguments.comment or arguments.setup):
         arguments.ident = arguments.comment = True
