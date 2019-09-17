@@ -214,7 +214,8 @@ def get_current_version() -> str:
         return config['VERSION']['current_version']
 
 
-def init_packets_processor(filepath: str) -> PacketsProcessor:
+def init_packets_processor(
+        filepath: str, arguments: Namespace) -> PacketsProcessor:
     """Initializes packets processor
 
     If initialization is failed then method prints exception details and
@@ -227,37 +228,44 @@ def init_packets_processor(filepath: str) -> PacketsProcessor:
     except FileNotFoundError as occurred_exc:
         exit_with_exception(
             "File not found: " + filepath,
-            occurred_exc)
+            occurred_exc,
+            arguments.debug)
 
     except IsADirectoryError as occurred_exc:
         exit_with_exception(
             'Directory name given: ' + filepath,
-            occurred_exc)
+            occurred_exc,
+            arguments.debug)
 
     except PermissionError as occurred_exc:
         exit_with_exception(
             'No access to file: ' + filepath,
-            occurred_exc)
+            occurred_exc,
+            arguments.debug)
 
     except OSError as occurred_exc:
         exit_with_exception(
             'File handling is impossible: ' + filepath,
-            occurred_exc)
+            occurred_exc,
+            arguments.debug)
 
     except (CorruptedFileDataError, EndOfPacketException) as occurred_exc:
         exit_with_exception(
             "File data is corrupted",
-            occurred_exc)
+            occurred_exc,
+            arguments.debug)
 
     except Exception as occurred_exc:
         exit_with_exception(
             "Some exception occurred in process of data reading",
-            occurred_exc)
+            occurred_exc,
+            arguments.debug)
 
     if result_packets_processor is None:
         exit_with_exception(
             "Some exception occurred in process of data reading",
-            Exception("Packets processor initialization failed"))
+            Exception("Packets processor initialization failed"),
+            arguments.debug)
 
     return result_packets_processor
 
@@ -285,19 +293,6 @@ def exit_with_exception(
 
 
 def run_console_launcher():
-    _CURRENT_VERSION: Optional[str] = None
-    try:
-        _CURRENT_VERSION = get_current_version()
-    except OSError as occurred_exc_:
-        exit_with_exception(
-            'Cannot read "data.ini" file',
-            occurred_exc_)
-
-    if _CURRENT_VERSION is None:
-        exit_with_exception(
-            'Error during "data.ini" file reading',
-            CorruptedFileDataError("Cannot get version"))
-
     def _parse_arguments() -> Namespace:
         parser = ArgumentParser(
             description='Process .ogg audiofile with vorbis coding and output '
@@ -305,14 +300,19 @@ def run_console_launcher():
             usage='launcher_console.py [options] filepath')
 
         parser.add_argument(
-            '-v', '--version',
+            '--version',
             help="print program's current version number and exit",
             action='version',
-            version=_CURRENT_VERSION)
+            version=get_current_version())
 
         parser.add_argument(
-            '-e', '--explain',
+            '--explain',
             help='show explanations in output about headers data',
+            action='store_true')
+
+        parser.add_argument(
+            '-d', '--debug',
+            help='turn on debug mode',
             action='store_true')
 
         parser.add_argument(
@@ -340,7 +340,7 @@ def run_console_launcher():
     arguments: Namespace = _parse_arguments()
 
     packets_processor: PacketsProcessor = init_packets_processor(
-        arguments.filepath)
+        arguments.filepath, arguments.debug)
 
     if not (arguments.ident or arguments.comment or arguments.setup):
         arguments.ident = arguments.comment = True
