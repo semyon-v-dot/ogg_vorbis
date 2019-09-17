@@ -1,11 +1,20 @@
-from os import path as os_path
 from unittest import TestCase, main as unittest_main
+from os import pardir as os_pardir
+from os.path import (
+    join as os_path_join,
+    dirname as os_path_dirname,
+    abspath as os_path_abspath)
+from sys import path as sys_path
+
+sys_path.append(os_path_join(
+    os_path_dirname(os_path_abspath(__file__)),
+    os_pardir))
 
 from vorbis.ogg import PacketsReader
 
 
-PATH_ORDINARY_TEST_1 = os_path.join(
-    os_path.dirname(os_path.abspath(__file__)),
+PATH_ORDINARY_TEST_1 = os_path_join(
+    os_path_dirname(os_path_abspath(__file__)),
     'test_audiofiles',
     'test_1.ogg')
 

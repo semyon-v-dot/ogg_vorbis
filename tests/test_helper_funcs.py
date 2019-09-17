@@ -1,8 +1,18 @@
 from unittest import TestCase, main as unittest_main
+from os import pardir as os_pardir
+from os.path import (
+    join as os_path_join,
+    dirname as os_path_dirname,
+    abspath as os_path_abspath)
+from sys import path as sys_path
+
+sys_path.append(os_path_join(
+    os_path_dirname(os_path_abspath(__file__)),
+    os_pardir))
 
 from vorbis.helper_funcs import (
     ilog, float32_unpack, lookup1_values, bit_reverse)
-from.test_decoders import hex_str_to_bin_str
+from .test_decoders import hex_str_to_bin_str
 
 
 # noinspection PyMethodMayBeStatic

@@ -1,6 +1,15 @@
 from unittest import TestCase, main as unittest_main
-from os import path as os_path
+from os import pardir as os_pardir
+from os.path import (
+    join as os_path_join,
+    dirname as os_path_dirname,
+    abspath as os_path_abspath)
 from typing import List
+from sys import path as sys_path
+
+sys_path.append(os_path_join(
+    os_path_dirname(os_path_abspath(__file__)),
+    os_pardir))
 
 from vorbis.decoders import (
     DataReader,
@@ -10,8 +19,8 @@ from vorbis.decoders import (
 from vorbis.helper_funcs import float32_unpack
 
 
-PATH_TEST_1 = os_path.join(
-    os_path.dirname(os_path.abspath(__file__)),
+PATH_TEST_1 = os_path_join(
+    os_path_dirname(os_path_abspath(__file__)),
     'test_audiofiles',
     'test_1.ogg')
 
@@ -416,6 +425,8 @@ class FloorsDecoderTests(TestCase):
         # 0001_1111
         #
         #
+
+        # TODO: Use here 'read_bits_for_int' BUT NOT TOO MUCH
 
         # Floors count
         self.assertEqual(data_reader.read_bits_for_int(6) + 1, 2)
