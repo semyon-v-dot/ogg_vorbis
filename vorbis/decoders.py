@@ -762,7 +762,8 @@ class DataReader:
     def get_current_global_position(self) -> Tuple[int, int]:
         """Returns current global position
 
-        Returns in format: (global_byte, bit_in_current_byte)"""
+        Returns in format: (<global byte>, <bit in this byte>)
+        """
         return (
             self.get_packet_global_position() + self.byte_pointer,
             self.bit_pointer)
