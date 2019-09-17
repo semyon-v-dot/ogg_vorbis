@@ -1,4 +1,4 @@
-from sys import version_info as sys_version_info, exit as sys_exit, argv
+from sys import version_info as sys_version_info, exit as sys_exit
 
 try:
     from ui.console_ui import run_console_launcher
@@ -9,6 +9,4 @@ finally:
 
 
 if __name__ == '__main__':
-    print(argv)
-
     run_console_launcher()
