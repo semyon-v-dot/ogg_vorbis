@@ -20,15 +20,19 @@ class PacketsReader:
     """Class for reading packets"""
     opened_file: BinaryIO
 
-    _current_packet_data: bytes = b''
-    _packet_pages: List[int] = []
-    _last_page: int = -1
+    _current_packet_data: bytes
+    _packet_pages: List[int]
+    _last_page: int
 
     def __init__(self, filename: str):
         try:
             self.opened_file = open(filename, 'rb')
         except OSError as occurred_err:
             raise OSError("Cannot open audiofile", *occurred_err.args)
+
+        self._current_packet_data = b''
+        self._packet_pages = []
+        self._last_page = -1
 
         if not self._ogg_capture_pattern_on_current_position():
             raise CorruptedFileDataError(
