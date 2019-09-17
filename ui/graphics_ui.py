@@ -248,7 +248,7 @@ def run_graphics_launcher():
         parser = ArgumentParser(
             description='Processes .ogg audiofile with vorbis coding and '
                         'plays it',
-            usage='launcher_console.py [options] filepath')
+            usage='launcher_console.py [options] <filepath>')
 
         parser.add_argument(
             '-v', '--version',
