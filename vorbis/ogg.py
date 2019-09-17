@@ -25,9 +25,10 @@ class PacketsReader:
     _last_page: int = -1
 
     def __init__(self, filename: str):
-        # This line can cause OSError raising. Occurred exception should be
-        # caught by outer code
-        self.opened_file = open(filename, 'rb')
+        try:
+            self.opened_file = open(filename, 'rb')
+        except OSError as occurred_err:
+            raise OSError("Cannot open audiofile", *occurred_err.args)
 
         if not self._ogg_capture_pattern_on_current_position():
             raise CorruptedFileDataError(
