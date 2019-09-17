@@ -16,12 +16,10 @@ from tkinter.ttk import (
 from PIL import Image as pil_Image
 from PIL.ImageTk import PhotoImage as pil_PhotoImage
 from contextlib import redirect_stdout as clib_redirect_stdout
-from typing import Optional
 from argparse import ArgumentParser, Namespace
 
-from vorbis.vorbis_main import PacketsProcessor, CorruptedFileDataError
-from .console_ui import (
-    get_current_version, init_packets_processor, exit_with_exception)
+from vorbis.vorbis_main import PacketsProcessor
+from .console_ui import get_current_version, init_packets_processor
 
 with clib_redirect_stdout(None):
     from pygame.mixer import (
@@ -231,19 +229,6 @@ class AudioToolbarFrame(tk_Frame):
 
 
 def run_graphics_launcher():
-    _CURRENT_VERSION: Optional[str] = None
-    try:
-        _CURRENT_VERSION = get_current_version()
-    except OSError as occurred_exc:
-        exit_with_exception(
-            'Cannot read "data.ini" file',
-            occurred_exc)
-
-    if _CURRENT_VERSION is None:
-        exit_with_exception(
-            'Error during "data.ini" file reading',
-            CorruptedFileDataError("Cannot get version"))
-
     def _parse_arguments() -> Namespace:
         parser = ArgumentParser(
             description='Processes .ogg audiofile with vorbis coding and '
@@ -254,7 +239,12 @@ def run_graphics_launcher():
             '-v', '--version',
             help="print program's current version number and exit",
             action='version',
-            version=_CURRENT_VERSION)
+            version=get_current_version())
+
+        parser.add_argument(
+            '-d', '--debug',
+            help='turn on debug mode',
+            action='store_true')
 
         parser.add_argument(
             'filepath',
@@ -266,7 +256,7 @@ def run_graphics_launcher():
     arguments: Namespace = _parse_arguments()
 
     packets_processor: PacketsProcessor = init_packets_processor(
-        arguments.filepath)
+        arguments.filepath, arguments)
 
     pygame_mixer_pre_init(44100, -16, 2, 2048)
     pygame_mixer_init()
