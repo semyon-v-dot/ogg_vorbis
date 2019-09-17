@@ -1,7 +1,11 @@
 from argparse import Namespace, ArgumentParser
-from configparser import ConfigParser
+from configparser import (
+    ConfigParser, ParsingError as configparser_ParsingError)
 from sys import exit as sys_exit
 from typing import Optional
+from os.path import (
+    split as os_path_split,
+    join as os_path_join)
 
 from vorbis.vorbis_main import (
     PacketsProcessor, CorruptedFileDataError, EndOfPacketException)
@@ -185,19 +189,27 @@ Modes:
     return output_info
 
 
-def get_current_version() -> Optional[str]:
+def get_current_version() -> str:
     """Gives current version str
 
-    Gives version based on 'data.ini' in current folder. If data is
-    corrupted then None returned"""
+    Gives version based on 'config.ini' in application's folder. If data is
+    corrupted then "Cannot read 'config.ini' file" str returns
+    """
     config: ConfigParser = ConfigParser()
+
+    current_dir: str
+    parent_dir: str
+
+    current_dir, _ = os_path_split(__file__)
+    parent_dir, _ = os_path_split(current_dir)
+
     try:
-        config.read('data.ini')
-    except OSError:
-        raise OSError('Cannot read "data.ini" file')
+        config.read(os_path_join(parent_dir, 'config.ini'))
+    except configparser_ParsingError:
+        pass
 
     if 'VERSION' not in config or 'current_version' not in config['VERSION']:
-        return None
+        return "Cannot read 'config.ini' file"
     else:
         return config['VERSION']['current_version']
 
@@ -250,14 +262,26 @@ def init_packets_processor(filepath: str) -> PacketsProcessor:
     return result_packets_processor
 
 
-def exit_with_exception(info_for_user: str, input_exception: Exception):
+def exit_with_exception(
+        info_for_user: str,
+        input_exception: Exception,
+        debugging_mode: bool):
     """Exits with exception
 
     Prints info to stdout for user and to stderr for debugging. Instead of
     error codes, 'error strings' are used. 'Error strings' have format:
-    (exception name) + ': ' + (exception args)"""
+    '\n' + (exception name) + ': ' + (exception args)
+    """
     print(info_for_user)
-    sys_exit(input_exception.__class__.__name__ + ": " + str(input_exception))
+
+    if debugging_mode:
+        sys_exit(
+            "\n"
+            + input_exception.__class__.__name__
+            + ": "
+            + str(input_exception))
+    else:
+        sys_exit(0)
 
 
 def run_console_launcher():
