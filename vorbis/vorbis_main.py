@@ -190,13 +190,12 @@ class PacketsProcessor(AbstractDecoder):
                 raise CorruptedFileDataError(
                     '[vorbis_time_count] placeholders contain nonzero')
 
-        # # Floors decoding
-        # # TODO: Recheck
-        # (current_stream.vorbis_floor_types,
-        #  current_stream.vorbis_codebook_configurations) = (
-        #     self._floors_decoder.read_floors(
-        #         len(current_stream.vorbis_codebook_configurations)))
-        #
+        # Floors decoding
+        (current_stream.vorbis_floor_types,
+         current_stream.vorbis_codebook_configurations) = (
+            self._floors_decoder.read_floors(
+                len(current_stream.vorbis_codebook_configurations)))
+
         # # Residues decoding
         # # TODO: Recheck
         # (current_stream.vorbis_residue_types,
