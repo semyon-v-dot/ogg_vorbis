@@ -1,5 +1,4 @@
 from typing import Optional, Callable, List, Tuple
-from dataclasses import dataclass
 
 from .ogg import PacketsReader, CorruptedFileDataError, FileDataException
 from .helper_funcs import float32_unpack, ilog, bit_reverse, lookup1_values
@@ -42,12 +41,13 @@ class CodebookDecoder(AbstractDecoder):
     # Fields in this class cannot be moved to related methods as arguments
     # for refactoring needs. Complexity of code will rise due to such a moving!
 
-    @dataclass
     class CodebookData:
         """Output data from codebook decoding"""
         codebook_codewords: List[str]
         VQ_lookup_table: List[List[float]]
         codebook_lookup_type: int
+        codebook_dimensions: int
+        codebook_entries: int
 
     last_read_codebook_position: Tuple[int, int]
 
@@ -87,11 +87,15 @@ class CodebookDecoder(AbstractDecoder):
         """Method reads full codebook from packet data"""
         self.last_read_codebook_position = self._get_current_global_position()
 
+        result_data: CodebookDecoder.CodebookData = self.CodebookData()
+
         self._check_codebook_sync_pattern()
 
         self._codebook_dimensions = self._read_bits_for_int(16)
+        result_data.codebook_dimensions = self._codebook_dimensions
 
         self._codebook_entries = self._read_bits_for_int(24)
+        result_data.codebook_entries = self._codebook_entries
 
         if self._codebook_entries == 1:
             raise CorruptedFileDataError('Single codebook entry was given')
@@ -103,8 +107,10 @@ class CodebookDecoder(AbstractDecoder):
         self._codebook_codewords_lengths = self._read_codeword_lengths()
 
         self._codebook_codewords = self._huffman_decode()
+        result_data.codebook_codewords = list(self._codebook_codewords)
 
         self._codebook_lookup_type = self._read_bits_for_int(4)
+        result_data.codebook_lookup_type = self._codebook_lookup_type
 
         if (self._codebook_lookup_type < 0
                 or self._codebook_lookup_type > 2):
@@ -113,7 +119,6 @@ class CodebookDecoder(AbstractDecoder):
                 + str(self._codebook_lookup_type))
 
         if self._codebook_lookup_type != 0:
-
             self._codebook_minimum_value = float32_unpack(
                 self._read_bits_for_int(32))
 
@@ -140,13 +145,13 @@ class CodebookDecoder(AbstractDecoder):
                     self._read_bits_for_int(self._codebook_value_bits))
 
             self._VQ_lookup_table = self._vq_lookup_table_unpack()
+            result_data.VQ_lookup_table = list(self._VQ_lookup_table)
 
-            return self.CodebookData(
-                self._codebook_codewords,
-                self._VQ_lookup_table,
-                self._codebook_lookup_type)
+            return result_data
 
-        return self.CodebookData(self._codebook_codewords, [], 0)
+        result_data.VQ_lookup_table = []
+
+        return result_data
 
     def _check_codebook_sync_pattern(self):
         """Checks if there is a codebook sync pattern in packet data"""
@@ -535,7 +540,7 @@ class ResiduesDecoder(AbstractDecoder):
 
         return vorbis_residue_types, vorbis_residue_configurations
 
-    # TODO: A bit of unclear code
+    # TODO: Recheck
     def _decode_residue_config(self) -> ResidueData:
         """Method decodes residue configuration"""
         result_data: 'ResiduesDecoder.ResidueData' = self.ResidueData()
@@ -545,6 +550,8 @@ class ResiduesDecoder(AbstractDecoder):
         result_data.residue_partition_size = self._read_bits_for_int(24) + 1
         result_data.residue_classifications = self._read_bits_for_int(6) + 1
         result_data.residue_classbook = self._read_bits_for_int(8)
+
+        print(len(self._codebooks_configs))
 
         if result_data.residue_classbook > len(self._codebooks_configs):
             raise CorruptedFileDataError(
