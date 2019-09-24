@@ -4,7 +4,7 @@ from os.path import (
     join as os_path_join,
     dirname as os_path_dirname,
     abspath as os_path_abspath)
-from typing import List, Tuple
+from typing import List
 from sys import path as sys_path
 
 sys_path.append(os_path_join(
@@ -13,8 +13,7 @@ sys_path.append(os_path_join(
 
 from vorbis.decoders import (
     DataReader,
-    CodebookDecoder,
-    FloorsDecoder,
+    SetupHeaderDecoder,
     EndOfPacketException)
 from vorbis.helper_funcs import float32_unpack
 
@@ -33,10 +32,10 @@ def hex_str_to_bin_str(hex_str: str):
     return ' '.join([item[:4] + '_' + item[4:] for item in bin_values])
 
 
-class CodebookDecoderTests(TestCase):
+class CodebookDecodingTests(TestCase):
     def test_codewords_reading_not_ordered_and_not_sparse(self):
         data_reader = DataReader(PATH_TEST_1)
-        codebook_decoder = CodebookDecoder(data_reader)
+        codebook_decoder = SetupHeaderDecoder(data_reader)
 
         data_reader.read_packet()
         data_reader.read_packet()
@@ -115,7 +114,7 @@ class CodebookDecoderTests(TestCase):
 
     def test_codewords_reading_not_ordered_and_sparse(self):
         data_reader = DataReader(PATH_TEST_1)
-        codebook_decoder = CodebookDecoder(data_reader)
+        codebook_decoder = SetupHeaderDecoder(data_reader)
 
         data_reader.read_packet()
         data_reader.read_packet()
@@ -171,7 +170,7 @@ class CodebookDecoderTests(TestCase):
 
     def test_codewords_lengths_reading_ordered(self):
         data_reader = DataReader(PATH_TEST_1)
-        codebook_decoder = CodebookDecoder(data_reader)
+        codebook_decoder = SetupHeaderDecoder(data_reader)
 
         data_reader.read_packet()
         data_reader.read_packet()
@@ -224,7 +223,7 @@ class CodebookDecoderTests(TestCase):
     # 'test_helper_funcs.py'
     def test_lookup_values_reading_type_1(self):
         data_reader = DataReader(PATH_TEST_1)
-        codebook_decoder = CodebookDecoder(data_reader)
+        codebook_decoder = SetupHeaderDecoder(data_reader)
 
         data_reader.read_packet()
         data_reader.read_packet()
@@ -281,7 +280,7 @@ class CodebookDecoderTests(TestCase):
             [1, 0, 2])
 
     def test_vq_table_unpacking_lookup_type_1(self):
-        codebook_decoder = CodebookDecoder(DataReader())
+        codebook_decoder = SetupHeaderDecoder(DataReader())
 
         codebook_decoder._codebook_multiplicands = [1, 0, 2]
 
@@ -316,10 +315,10 @@ class CodebookDecoderTests(TestCase):
         pass
 
 
-class FloorsDecoderTests(TestCase):
+class FloorsDecodingTests(TestCase):
     def test_floor_1_decoding(self):
         data_reader = DataReader(PATH_TEST_1)
-        codebook_decoder = CodebookDecoder(data_reader)
+        codebook_decoder = SetupHeaderDecoder(data_reader)
 
         data_reader.read_packet()
         data_reader.read_packet()
@@ -387,9 +386,9 @@ class FloorsDecoderTests(TestCase):
         # First floor's type
         self.assertEqual(1, data_reader.read_bits_for_int(16))
 
-        floors_decoder: FloorsDecoder = FloorsDecoder(data_reader)
+        floors_decoder: SetupHeaderDecoder = SetupHeaderDecoder(data_reader)
 
-        first_floor_data: FloorsDecoder.FloorData = (
+        first_floor_data: SetupHeaderDecoder.FloorData = (
             floors_decoder._decode_floor_config_type_1(44))
 
         # floor1_partitions = 5
@@ -467,7 +466,7 @@ class FloorsDecoderTests(TestCase):
 
 
 class HuffmanTests(TestCase):
-    _codebook_decoder: CodebookDecoder = CodebookDecoder(DataReader())
+    _codebook_decoder: SetupHeaderDecoder = SetupHeaderDecoder(DataReader())
 
     def test_1_Huffman(self):
         self._codebook_decoder._codebook_codewords_lengths = [
