@@ -32,6 +32,53 @@ def hex_str_to_bin_str(hex_str: str):
     return ' '.join([item[:4] + '_' + item[4:] for item in bin_values])
 
 
+class DataReaderTests(TestCase):
+    def test_read_some_bytes(self):
+        data_reader = DataReader(data=b'\x76\x6f\x72\x62\x69\x73')
+
+        self.assertEqual(
+            data_reader.read_bytes(6),
+            b'\x76\x6f\x72\x62\x69\x73')
+
+    def test_read_some_extra_bytes(self):
+        data_reader = DataReader(data=b'\x76\x6f\x72\x62\x69\x73')
+
+        with self.assertRaises(EndOfPacketException):
+            data_reader.read_bytes(7)
+
+    def test_read_some_bits(self):
+        # 92 E4 -> 1001_0010 1110_0100
+        data_reader = DataReader(data=b'\x92\xE4')
+
+        self.assertEqual(
+            data_reader._read_bits(2 * 8),
+            "1110010010010010")
+
+    def test_read_some_extra_bits(self):
+        data_reader = DataReader(data=b'\x76\x6f\x72')
+
+        with self.assertRaises(EndOfPacketException):
+            data_reader._read_bits(8 * 3 + 1)
+
+    def test_read_bits_for_unsigned_int(self):
+        data_reader = DataReader(PATH_TEST_1)
+
+        data_reader._current_packet = b'\x32\x56'
+        self.assertEqual(data_reader.read_bits_for_int(1), 0)
+        self.assertEqual(data_reader.read_bits_for_int(5), 25)
+        self.assertEqual(data_reader.read_bits_for_int(9), 344)
+
+    def test_read_bits_for_signed_int(self):
+        data_reader = DataReader(data=b'\x32\x56')
+
+        self.assertEqual(
+            data_reader.read_bits_for_int(2, signed=True), -2)
+        self.assertEqual(
+            data_reader.read_bits_for_int(8, signed=True), -116)
+        self.assertEqual(
+            data_reader.read_bits_for_int(5, signed=True), -11)
+
+
 class CodebookDecodingTests(TestCase):
     def test_codewords_reading_not_ordered_and_not_sparse(self):
         data_reader = DataReader(PATH_TEST_1)
@@ -315,156 +362,6 @@ class CodebookDecodingTests(TestCase):
         pass
 
 
-class FloorsDecodingTests(TestCase):
-    def test_floor_1_decoding(self):
-        data_reader = DataReader(PATH_TEST_1)
-        codebook_decoder = SetupHeaderDecoder(data_reader)
-
-        data_reader.read_packet()
-        data_reader.read_packet()
-        data_reader.read_packet()
-
-        data_reader.byte_pointer = 8
-
-        for i in range(44):
-            codebook_decoder.read_codebook()
-
-        for i in range(data_reader.read_bits_for_int(6) + 1):
-            placeholder = data_reader.read_bits_for_int(16)
-
-            self.assertEqual(placeholder, 0)
-
-        #       80 20 |                     1000_0000 0010_0000
-        # 00 C0 40 84 | 0000_0000 1100_0000 0100_0000 1000_0100
-        # CC 04 02 05 | 1100_1100 0000_0100 0000_0010 0000_0101
-        # 50 60 20 03 | 0101_0000 0110_0000 0010_0000 0000_0011
-        # 00 0E 10 12 | 0000_0000 0000_1110 0001_0000 0001_0010
-        # A4 00 80 C2 | 1010_0100 0000_0000 1000_0000 1100_0010
-        # 02 43 C7 70 | 0000_0010 0100_0011 1100_0111 0111_0000
-        # 11 10 90 4B | 0001_0001 0001_0000 1001_0000 0100_1011
-        # C8 28 30 28 | 1100_1000 0010_1000 0011_0000 0010_1000
-        # 1C 13 CE 49 | 0001_1100 0001_0011 1100_1110 0100_1001
-        # A7 0D 00 40 | 1010_0111 0000_1101 0000_0000 0100_0000
-        # 10 22 33 44 | 0001_0000 0010_0010 0011_0011 0100_0100
-        # 22 62 31 48 | 0010_0010 0110_0010 0011_0001 0100_1000
-        # 4C A8 06 8A | 0100_1100 1010_1000 0000_0110 1000_1010
-        # 8A E9 00 60 | 1000_1010 1110_1001 0000_0000 0110_0000
-        # 71 81 21 1F | 0111_0001 1000_0001 0010_0001 0001_1111
-        #
-        # [bitstream]
-        # (1) [000_0000]-> previous things
-        # (001) [0_0000|1]-> vorbis_floor_count
-        # (0000_0000|001)
-        # (110) [0_0000|0000_0000||001]-> vorbis_floor_types[0]
-        # (01) [00_00]  [00|110]-> floor1_partitions
-        # (10) [00_01] [00|01]-> floor1_partition_class_list second element
-        # (11) [00_11] [00|10]
-        # (0) [00]-> class_subclasses[0] [0_01]-> class_dimensions[0] [00|11]
-        # (0) [000_0010|0]-> subclass_books[0][0]+1
-        # (0000) [01]-> class_subclasses[1] [01|0]-> class_dimensions[1]
-        # (0101) [0000|0000]-> class_masterbooks[1]
-        # (0110) [0000|0101]-> subclass_books[1][0]
-        # (0) [010]-> class_dimensions[2] [0000|0110]-> subclass_books[1][1]
-        # (0000_001) [1|0]-> class_subclasses[2]
-        # (0000_000) [0|0000_001]-> class_masterbooks[2]
-        # (0000_111) [0|0000_000]-> subclass_books[2][0]
-        # (0001_000) [0|0000_111]-> subclass_books[2][1]
-        # (0001_001) [0|0001_000]-> subclass_books[2][2]
-        # (1010_010)  [0|0001_001]-> subclass_books[2][3]
-        # (0000_0000|10) [10]-> class_subclasses[3] [010]-> class_dimensions[3]
-        # (1000_0000|00) [00_0000||10]-> class_masterbooks[3]
-        # (11) [00_0010|10]-> s_bs[3][1] [00_0000||00]-> subclass_books[3][0]
-        # (00) [00_0010|11]-> s_bs[3][2]
-        # [01]-> floor1_multiplier [00_0011|00]-> s_bs[3][3]
-        # (1100) [0111]-> rangebits
-        # (0111_0) [000|1100]-> floor1_X_list[2]
-        # 0001_00 [01|0111_0]-> floor1_X_list[3]
-
-        # Floors count
-        self.assertEqual(2, data_reader.read_bits_for_int(6) + 1)
-
-        # First floor's type
-        self.assertEqual(1, data_reader.read_bits_for_int(16))
-
-        floors_decoder: SetupHeaderDecoder = SetupHeaderDecoder(data_reader)
-
-        first_floor_data: SetupHeaderDecoder.FloorData = (
-            floors_decoder._decode_floor_config_type_1(44))
-
-        # floor1_partitions = 5
-
-        self.assertEqual(
-            [0, 1, 1, 2, 3, 3],
-            first_floor_data.floor1_partition_class_list)
-
-        # maximum_class = 3
-
-        # iterate [i] over the range 0 ... [maximum_class]
-
-        # i = 0
-        self.assertEqual(2, first_floor_data.floor1_class_dimensions[0])
-        self.assertEqual(0, first_floor_data.floor1_class_subclasses[0])
-        self.assertEqual(None, first_floor_data.floor1_class_masterbooks[0])
-        self.assertEqual(3, first_floor_data.floor1_subclass_books[0][0])
-
-        # i = 1
-        self.assertEqual(3, first_floor_data.floor1_class_dimensions[1])
-        self.assertEqual(1, first_floor_data.floor1_class_subclasses[1])
-        self.assertEqual(0, first_floor_data.floor1_class_masterbooks[1])
-        self.assertEqual(4, first_floor_data.floor1_subclass_books[1][0])
-        self.assertEqual(5, first_floor_data.floor1_subclass_books[1][1])
-
-        # i = 2
-        self.assertEqual(
-            0b010 + 1, first_floor_data.floor1_class_dimensions[2])
-        self.assertEqual(0b10, first_floor_data.floor1_class_subclasses[2])
-        self.assertEqual(
-            0b00000_001, first_floor_data.floor1_class_masterbooks[2])
-        self.assertEqual(
-            0b00000_000 - 1, first_floor_data.floor1_subclass_books[2][0])
-        self.assertEqual(
-            0b00000_111 - 1, first_floor_data.floor1_subclass_books[2][1])
-        self.assertEqual(
-            0b00001_000 - 1, first_floor_data.floor1_subclass_books[2][2])
-        self.assertEqual(
-            0b00001_001 - 1, first_floor_data.floor1_subclass_books[2][3])
-
-        # i = 3
-        self.assertEqual(
-            0b010 + 1, first_floor_data.floor1_class_dimensions[3])
-        self.assertEqual(0b10, first_floor_data.floor1_class_subclasses[3])
-        self.assertEqual(
-            0b00_000010, first_floor_data.floor1_class_masterbooks[3])
-        self.assertEqual(
-            0b00_000000 - 1, first_floor_data.floor1_subclass_books[3][0])
-        self.assertEqual(
-            0b00_001010 - 1, first_floor_data.floor1_subclass_books[3][1])
-        self.assertEqual(
-            0b00_001011 - 1, first_floor_data.floor1_subclass_books[3][2])
-        self.assertEqual(
-            0b00_001100 - 1, first_floor_data.floor1_subclass_books[3][3])
-
-        # floor1_multiplier = 1 + 1 = 2
-        rangebits: int = 0b0111  # = 7
-
-        self.assertEqual(0, first_floor_data.floor1_x_list[0])
-        self.assertEqual(2**rangebits, first_floor_data.floor1_x_list[1])
-
-        # iterate [i] over the range 0 ... [floor1_partitions] - 1
-
-        # i = 0
-
-        # current_class_number = floor1_partition_class_list[0] = 2
-        # floor1_class_dimensions[current_class_number] =
-        #   floor1_class_dimensions[2] = 0b010 + 1 = 3
-
-        # iterate [j] over the range 0 ...
-        #   [(floor1_class_dimensions[current_class_number]) - 1] = 2
-
-        self.assertEqual(0b0001100, first_floor_data.floor1_x_list[2])
-        self.assertEqual(0b010111_0, first_floor_data.floor1_x_list[3])
-
-
 class HuffmanTests(TestCase):
     _codebook_decoder: SetupHeaderDecoder = SetupHeaderDecoder(DataReader())
 
@@ -638,51 +535,154 @@ class HuffmanTests(TestCase):
             self._EXTREMELY_BIG_HUFFMAN)
 
 
-class DataReaderTests(TestCase):
-    def test_read_some_bytes(self):
-        data_reader = DataReader(data=b'\x76\x6f\x72\x62\x69\x73')
-
-        self.assertEqual(
-            data_reader.read_bytes(6),
-            b'\x76\x6f\x72\x62\x69\x73')
-
-    def test_read_some_extra_bytes(self):
-        data_reader = DataReader(data=b'\x76\x6f\x72\x62\x69\x73')
-
-        with self.assertRaises(EndOfPacketException):
-            data_reader.read_bytes(7)
-
-    def test_read_some_bits(self):
-        # 92 E4 -> 1001_0010 1110_0100
-        data_reader = DataReader(data=b'\x92\xE4')
-
-        self.assertEqual(
-            data_reader._read_bits(2 * 8),
-            "1110010010010010")
-
-    def test_read_some_extra_bits(self):
-        data_reader = DataReader(data=b'\x76\x6f\x72')
-
-        with self.assertRaises(EndOfPacketException):
-            data_reader._read_bits(8 * 3 + 1)
-
-    def test_read_bits_for_unsigned_int(self):
+class FloorsDecodingTests(TestCase):
+    def test_floor_1_decoding(self):
         data_reader = DataReader(PATH_TEST_1)
+        codebook_decoder = SetupHeaderDecoder(data_reader)
 
-        data_reader._current_packet = b'\x32\x56'
-        self.assertEqual(data_reader.read_bits_for_int(1), 0)
-        self.assertEqual(data_reader.read_bits_for_int(5), 25)
-        self.assertEqual(data_reader.read_bits_for_int(9), 344)
+        data_reader.read_packet()
+        data_reader.read_packet()
+        data_reader.read_packet()
 
-    def test_read_bits_for_signed_int(self):
-        data_reader = DataReader(data=b'\x32\x56')
+        data_reader.byte_pointer = 8
+
+        for i in range(44):
+            codebook_decoder.read_codebook()
+
+        for i in range(data_reader.read_bits_for_int(6) + 1):
+            placeholder = data_reader.read_bits_for_int(16)
+
+            self.assertEqual(placeholder, 0)
+
+        #       80 20 |                     1000_0000 0010_0000
+        # 00 C0 40 84 | 0000_0000 1100_0000 0100_0000 1000_0100
+        # CC 04 02 05 | 1100_1100 0000_0100 0000_0010 0000_0101
+        # 50 60 20 03 | 0101_0000 0110_0000 0010_0000 0000_0011
+        # 00 0E 10 12 | 0000_0000 0000_1110 0001_0000 0001_0010
+        # A4 00 80 C2 | 1010_0100 0000_0000 1000_0000 1100_0010
+        # 02 43 C7 70 | 0000_0010 0100_0011 1100_0111 0111_0000
+        # 11 10 90 4B | 0001_0001 0001_0000 1001_0000 0100_1011
+        # C8 28 30 28 | 1100_1000 0010_1000 0011_0000 0010_1000
+        # 1C 13 CE 49 | 0001_1100 0001_0011 1100_1110 0100_1001
+        # A7 0D 00 40 | 1010_0111 0000_1101 0000_0000 0100_0000
+        # 10 22 33 44 | 0001_0000 0010_0010 0011_0011 0100_0100
+        # 22 62 31 48 | 0010_0010 0110_0010 0011_0001 0100_1000
+        # 4C A8 06 8A | 0100_1100 1010_1000 0000_0110 1000_1010
+        # 8A E9 00 60 | 1000_1010 1110_1001 0000_0000 0110_0000
+        # 71 81 21 1F | 0111_0001 1000_0001 0010_0001 0001_1111
+        #
+        # [bitstream]
+        # (1) [000_0000]-> previous things
+        # (001) [0_0000|1]-> vorbis_floor_count
+        # (0000_0000|001)
+        # (110) [0_0000|0000_0000||001]-> vorbis_floor_types[0]
+        # (01) [00_00]  [00|110]-> floor1_partitions
+        # (10) [00_01] [00|01]-> floor1_partition_class_list second element
+        # (11) [00_11] [00|10]
+        # (0) [00]-> class_subclasses[0] [0_01]-> class_dimensions[0] [00|11]
+        # (0) [000_0010|0]-> subclass_books[0][0]+1
+        # (0000) [01]-> class_subclasses[1] [01|0]-> class_dimensions[1]
+        # (0101) [0000|0000]-> class_masterbooks[1]
+        # (0110) [0000|0101]-> subclass_books[1][0]
+        # (0) [010]-> class_dimensions[2] [0000|0110]-> subclass_books[1][1]
+        # (0000_001) [1|0]-> class_subclasses[2]
+        # (0000_000) [0|0000_001]-> class_masterbooks[2]
+        # (0000_111) [0|0000_000]-> subclass_books[2][0]
+        # (0001_000) [0|0000_111]-> subclass_books[2][1]
+        # (0001_001) [0|0001_000]-> subclass_books[2][2]
+        # (1010_010)  [0|0001_001]-> subclass_books[2][3]
+        # (0000_0000|10) [10]-> class_subclasses[3] [010]-> class_dimensions[3]
+        # (1000_0000|00) [00_0000||10]-> class_masterbooks[3]
+        # (11) [00_0010|10]-> s_bs[3][1] [00_0000||00]-> subclass_books[3][0]
+        # (00) [00_0010|11]-> s_bs[3][2]
+        # [01]-> floor1_multiplier [00_0011|00]-> s_bs[3][3]
+        # (1100) [0111]-> rangebits
+        # (0111_0) [000|1100]-> floor1_X_list[2]
+        # 0001_00 [01|0111_0]-> floor1_X_list[3]
+
+        # Floors count
+        self.assertEqual(2, data_reader.read_bits_for_int(6) + 1)
+
+        # First floor's type
+        self.assertEqual(1, data_reader.read_bits_for_int(16))
+
+        floors_decoder: SetupHeaderDecoder = SetupHeaderDecoder(data_reader)
+
+        first_floor_data: SetupHeaderDecoder.FloorData = (
+            floors_decoder._decode_floor_config_type_1(44))
+
+        # floor1_partitions = 5
 
         self.assertEqual(
-            data_reader.read_bits_for_int(2, signed=True), -2)
+            [0, 1, 1, 2, 3, 3],
+            first_floor_data.floor1_partition_class_list)
+
+        # maximum_class = 3
+
+        # iterate [i] over the range 0 ... [maximum_class]
+
+        # i = 0
+        self.assertEqual(2, first_floor_data.floor1_class_dimensions[0])
+        self.assertEqual(0, first_floor_data.floor1_class_subclasses[0])
+        self.assertEqual(None, first_floor_data.floor1_class_masterbooks[0])
+        self.assertEqual(3, first_floor_data.floor1_subclass_books[0][0])
+
+        # i = 1
+        self.assertEqual(3, first_floor_data.floor1_class_dimensions[1])
+        self.assertEqual(1, first_floor_data.floor1_class_subclasses[1])
+        self.assertEqual(0, first_floor_data.floor1_class_masterbooks[1])
+        self.assertEqual(4, first_floor_data.floor1_subclass_books[1][0])
+        self.assertEqual(5, first_floor_data.floor1_subclass_books[1][1])
+
+        # i = 2
         self.assertEqual(
-            data_reader.read_bits_for_int(8, signed=True), -116)
+            0b010 + 1, first_floor_data.floor1_class_dimensions[2])
+        self.assertEqual(0b10, first_floor_data.floor1_class_subclasses[2])
         self.assertEqual(
-            data_reader.read_bits_for_int(5, signed=True), -11)
+            0b00000_001, first_floor_data.floor1_class_masterbooks[2])
+        self.assertEqual(
+            0b00000_000 - 1, first_floor_data.floor1_subclass_books[2][0])
+        self.assertEqual(
+            0b00000_111 - 1, first_floor_data.floor1_subclass_books[2][1])
+        self.assertEqual(
+            0b00001_000 - 1, first_floor_data.floor1_subclass_books[2][2])
+        self.assertEqual(
+            0b00001_001 - 1, first_floor_data.floor1_subclass_books[2][3])
+
+        # i = 3
+        self.assertEqual(
+            0b010 + 1, first_floor_data.floor1_class_dimensions[3])
+        self.assertEqual(0b10, first_floor_data.floor1_class_subclasses[3])
+        self.assertEqual(
+            0b00_000010, first_floor_data.floor1_class_masterbooks[3])
+        self.assertEqual(
+            0b00_000000 - 1, first_floor_data.floor1_subclass_books[3][0])
+        self.assertEqual(
+            0b00_001010 - 1, first_floor_data.floor1_subclass_books[3][1])
+        self.assertEqual(
+            0b00_001011 - 1, first_floor_data.floor1_subclass_books[3][2])
+        self.assertEqual(
+            0b00_001100 - 1, first_floor_data.floor1_subclass_books[3][3])
+
+        # floor1_multiplier = 1 + 1 = 2
+        rangebits: int = 0b0111  # = 7
+
+        self.assertEqual(0, first_floor_data.floor1_x_list[0])
+        self.assertEqual(2**rangebits, first_floor_data.floor1_x_list[1])
+
+        # iterate [i] over the range 0 ... [floor1_partitions] - 1
+
+        # i = 0
+
+        # current_class_number = floor1_partition_class_list[0] = 2
+        # floor1_class_dimensions[current_class_number] =
+        #   floor1_class_dimensions[2] = 0b010 + 1 = 3
+
+        # iterate [j] over the range 0 ...
+        #   [(floor1_class_dimensions[current_class_number]) - 1] = 2
+
+        self.assertEqual(0b0001100, first_floor_data.floor1_x_list[2])
+        self.assertEqual(0b010111_0, first_floor_data.floor1_x_list[3])
 
 
 if __name__ == '__main__':
