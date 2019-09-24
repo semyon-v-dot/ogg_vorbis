@@ -4,10 +4,7 @@ from .ogg import CorruptedFileDataError, FileDataException
 from .decoders import (
     DataReader,
     AbstractDecoder,
-    CodebookDecoder,
-    FloorsDecoder,
-    ResiduesDecoder,
-    MappingsDecoder,
+    SetupHeaderDecoder,
     EndOfPacketException)
 
 
@@ -48,25 +45,22 @@ class PacketsProcessor(AbstractDecoder):
 
         # Setup header data
 
-        vorbis_codebook_configurations: List[CodebookDecoder.CodebookData]
+        vorbis_codebook_configurations: List[SetupHeaderDecoder.CodebookData]
 
         vorbis_floor_types: List[int]
-        vorbis_floor_configurations: List[FloorsDecoder.FloorData]
+        vorbis_floor_configurations: List[SetupHeaderDecoder.FloorData]
 
         vorbis_residue_types: List[int]
-        vorbis_residue_configurations: List[ResiduesDecoder.ResidueData]
+        vorbis_residue_configurations: List[SetupHeaderDecoder.ResidueData]
 
-        vorbis_mapping_configurations: List[MappingsDecoder.MappingData]
+        vorbis_mapping_configurations: List[SetupHeaderDecoder.MappingData]
 
         vorbis_mode_configurations: List[Tuple[bool, int]]
 
         def __init__(self, input_byte_position: int):
             self.byte_position = input_byte_position
 
-    _codebook_decoder: CodebookDecoder
-    _floors_decoder: FloorsDecoder
-    _residues_decoder: ResiduesDecoder
-    _mappings_decoder: MappingsDecoder
+    _setup_header_decoder: SetupHeaderDecoder
 
     logical_streams: List[LogicalStream]
 
@@ -78,9 +72,7 @@ class PacketsProcessor(AbstractDecoder):
         self._basic_file_format_check(filename)
 
         self.logical_streams = []
-        self._codebook_decoder = CodebookDecoder(self._data_reader)
-        self._floors_decoder = FloorsDecoder(self._data_reader)
-        self._residues_decoder = ResiduesDecoder(self._data_reader)
+        self._setup_header_decoder = SetupHeaderDecoder(self._data_reader)
 
     def _basic_file_format_check(self, filename):
         """Method on a basic level checks if given file is ogg vorbis format"""
@@ -98,7 +90,7 @@ class PacketsProcessor(AbstractDecoder):
         self._data_reader.restart_file_reading()
 
     def process_headers(self):
-        """Method-wrapper for better exception debugging"""
+        """Method-wrapper for better debugging"""
         try:
             self._process_headers()
         except (FileDataException, BaseException) as occurred_exc:
@@ -162,98 +154,6 @@ class PacketsProcessor(AbstractDecoder):
                     packet_type = self._read_bytes(1)
         except EOFError:
             self._data_reader.restart_file_reading()
-
-    # TODO: '_process_setup_header'
-    def _process_setup_header(self):
-        """Processes setup header info
-
-        Stores info into current logical stream"""
-        self._check_header_sync_pattern()
-
-        current_stream = self.logical_streams[-1]
-
-        # Codebooks decoding
-
-        current_stream.vorbis_codebook_configurations = []
-
-        for i in range(self._read_bits_for_int(8) + 1):
-            current_stream.vorbis_codebook_configurations.append(
-                self._codebook_decoder.read_codebook())
-
-        # Placeholders in Vorbis I
-
-        vorbis_time_count = self._read_bits_for_int(6) + 1  # Line from docs
-
-        for i in range(vorbis_time_count):
-            placeholder = self._read_bits_for_int(16)
-
-            if placeholder != 0:
-                raise CorruptedFileDataError(
-                    '[vorbis_time_count] placeholders contain nonzero')
-
-        # Floors decoding
-        (current_stream.vorbis_floor_types,
-         current_stream.vorbis_floor_configurations) = (
-            self._floors_decoder.read_floors(
-                len(current_stream.vorbis_codebook_configurations)))
-
-        # Residues decoding
-        # TODO: Recheck
-        (current_stream.vorbis_residue_types,
-         current_stream.vorbis_residue_configurations) = (
-            self._residues_decoder.read_residues(
-                current_stream.vorbis_codebook_configurations))
-
-        # # Mappings decoding
-        # # TODO: Recheck
-        # current_stream.vorbis_mapping_configurations = (
-        #     self._mappings_decoder.read_mappings(
-        #         current_stream.audio_channels,
-        #         current_stream.vorbis_floor_types,
-        #         current_stream.vorbis_residue_types))
-
-        # # Modes decoding
-        # # TODO: Recheck
-        # current_stream.vorbis_mode_configurations = self._read_modes_configs(
-        #     len(current_stream.vorbis_mapping_configurations))
-
-        # # Framing bit check
-        # if self._read_bit() != 0:
-        #     raise CorruptedFileDataError(
-        #         'Framing bit lost while setup header decoding')
-
-    # WouldBeBetter: Unite all setup header data decoders into one big
-    #  decoder and move '_read_modes_configs' method there
-    def _read_modes_configs(
-            self, mappings_amount: int) -> List[Tuple[bool, int]]:
-        """
-
-        Input data from current logical stream
-        """
-        modes_configs: List[Tuple[bool, int]] = []
-
-        for i in range(self._read_bits_for_int(6) + 1):
-            vorbis_mode_blockflag = bool(self._read_bit())
-            vorbis_mode_windowtype = self._read_bits_for_int(16)
-            vorbis_mode_transformtype = self._read_bits_for_int(16)
-            vorbis_mode_mapping = self._read_bits_for_int(8)
-
-            if vorbis_mode_windowtype != 0 or vorbis_mode_transformtype != 0:
-                raise CorruptedFileDataError(
-                    'Received incorrect [vorbis_mode_windowtype] or '
-                    '[vorbis_mode_transformtype]: '
-                    + str(vorbis_mode_windowtype)
-                    + ' '
-                    + str(vorbis_mode_transformtype))
-
-            if vorbis_mode_mapping > mappings_amount:
-                raise CorruptedFileDataError(
-                    'Received incorrect [vorbis_mode_mapping]: '
-                    + str(vorbis_mode_mapping))
-
-            modes_configs.append((vorbis_mode_blockflag, vorbis_mode_mapping))
-
-        return modes_configs
 
     def _process_identification_header(self):
         """Processes identification header
@@ -343,6 +243,65 @@ class PacketsProcessor(AbstractDecoder):
 
         if not bool(self._read_bit):  # framing bit
             current_stream.comment_header_decoding_failed = True
+
+    # TODO: '_process_setup_header'
+    def _process_setup_header(self):
+        """Processes setup header info
+
+        Stores info into current logical stream"""
+        self._check_header_sync_pattern()
+
+        current_stream = self.logical_streams[-1]
+
+        # Codebooks decoding
+
+        current_stream.vorbis_codebook_configurations = []
+
+        for i in range(self._read_bits_for_int(8) + 1):
+            current_stream.vorbis_codebook_configurations.append(
+                self._setup_header_decoder.read_codebook())
+
+        # Placeholders in Vorbis I
+
+        vorbis_time_count = self._read_bits_for_int(6) + 1  # Line from docs
+
+        for i in range(vorbis_time_count):
+            placeholder = self._read_bits_for_int(16)
+
+            if placeholder != 0:
+                raise CorruptedFileDataError(
+                    '[vorbis_time_count] placeholders contain nonzero')
+
+        # Floors decoding
+        (current_stream.vorbis_floor_types,
+         current_stream.vorbis_floor_configurations) = (
+            self._setup_header_decoder.read_floors(
+                len(current_stream.vorbis_codebook_configurations)))
+
+        # Residues decoding
+        # TODO: Recheck
+        (current_stream.vorbis_residue_types,
+         current_stream.vorbis_residue_configurations) = (
+            self._setup_header_decoder.read_residues(
+                current_stream.vorbis_codebook_configurations))
+
+        # # Mappings decoding
+        # # TODO: Recheck
+        # current_stream.vorbis_mapping_configurations = (
+        #     self._mappings_decoder.read_mappings(
+        #         current_stream.audio_channels,
+        #         current_stream.vorbis_floor_types,
+        #         current_stream.vorbis_residue_types))
+
+        # # Modes decoding
+        # # TODO: Recheck
+        # current_stream.vorbis_mode_configurations = self._read_modes_configs(
+        #     len(current_stream.vorbis_mapping_configurations))
+
+        # # Framing bit check
+        # if self._read_bit() != 0:
+        #     raise CorruptedFileDataError(
+        #         'Framing bit lost while setup header decoding')
 
     def _check_header_sync_pattern(self):
         """Method checks if there is a header sync pattern in packet data"""

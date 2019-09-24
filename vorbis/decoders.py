@@ -36,7 +36,7 @@ class AbstractDecoder:
             data_reader.get_current_global_position)
 
 
-class CodebookDecoder(AbstractDecoder):
+class SetupHeaderDecoder(AbstractDecoder):
     """Class represents decoder of vorbis codebooks"""
     class CodebookData:
         """Output data from codebook decoding"""
@@ -45,6 +45,36 @@ class CodebookDecoder(AbstractDecoder):
         codebook_lookup_type: int
         codebook_dimensions: int
         codebook_entries: int
+
+    class FloorData:
+        floor1_partition_class_list: List[int]
+        floor1_class_dimensions: List[int]
+        floor1_class_subclasses: List[int]
+        floor1_class_masterbooks: List[int]
+        floor1_subclass_books: List[List[int]]
+        floor1_multiplier: int
+        floor1_x_list: List[int]
+        floor1_values: int
+
+    class ResidueData:
+        residue_begin: int
+        residue_end: int
+        residue_partition_size: int
+        residue_classifications: int
+        residue_classbook: int
+        residue_cascade: List[int]
+        residue_books: List[List[Optional[int]]]
+
+    class MappingData:
+        vorbis_mapping_submaps: int
+        vorbis_mapping_coupling_steps: int
+        vorbis_mapping_magnitude: List[int]
+        vorbis_mapping_angle: List[int]
+        vorbis_mapping_mux: List[int]
+        vorbis_mapping_submap_floor: List[int]
+        vorbis_mapping_submap_residue: List[int]
+
+    # All class' vars below related to codebooks decoding ONLY
 
     last_read_codebook_position: Tuple[int, int]
 
@@ -84,7 +114,7 @@ class CodebookDecoder(AbstractDecoder):
         """Method reads full codebook from packet data"""
         self.last_read_codebook_position = self._get_current_global_position()
 
-        result_data: CodebookDecoder.CodebookData = self.CodebookData()
+        result_data: SetupHeaderDecoder.CodebookData = self.CodebookData()
 
         self._check_codebook_sync_pattern()
 
@@ -367,28 +397,13 @@ class CodebookDecoder(AbstractDecoder):
                 raise CorruptedFileDataError(
                     'Huffman tree is underspecified')
 
-
-class FloorsDecoder(AbstractDecoder):
-    class FloorData:
-        floor1_partition_class_list: List[int]
-        floor1_class_dimensions: List[int]
-        floor1_class_subclasses: List[int]
-        floor1_class_masterbooks: List[int]
-        floor1_subclass_books: List[List[int]]
-        floor1_multiplier: int
-        floor1_x_list: List[int]
-        floor1_values: int
-
-    def __init__(self, data_reader: 'DataReader'):
-        super().__init__(data_reader)
-
     def read_floors(
             self, codebooks_amount: int) -> Tuple[List[int], List[FloorData]]:
         """Returns tuple of floors' types AND related floors' data
 
         Input data from current logical stream"""
         vorbis_floor_types: List[int] = []
-        vorbis_floor_configurations: List['FloorsDecoder.FloorData'] = []
+        vorbis_floor_configurations: List['SetupHeaderDecoder.FloorData'] = []
 
         for i in range(self._read_bits_for_int(6) + 1):
             vorbis_floor_types.append(self._read_bits_for_int(16))
@@ -420,7 +435,7 @@ class FloorsDecoder(AbstractDecoder):
 
     def _decode_floor_config_type_1(self, codebooks_amount: int) -> FloorData:
         """Method decodes floor configuration type 1"""
-        result_data: 'FloorsDecoder.FloorData' = self.FloorData()
+        result_data: 'SetupHeaderDecoder.FloorData' = self.FloorData()
 
         floor1_partitions = self._read_bits_for_int(5)
         result_data.floor1_partition_class_list = []
@@ -495,30 +510,16 @@ class FloorsDecoder(AbstractDecoder):
 
         return result_data
 
-
-class ResiduesDecoder(AbstractDecoder):
-    class ResidueData:
-        residue_begin: int
-        residue_end: int
-        residue_partition_size: int
-        residue_classifications: int
-        residue_classbook: int
-        residue_cascade: List[int]
-        residue_books: List[List[Optional[int]]]
-
-    def __init__(self, data_reader: 'DataReader'):
-        super().__init__(data_reader)
-
     def read_residues(
             self,
-            codebooks_configs: List[CodebookDecoder.CodebookData]
+            codebooks_configs: List['SetupHeaderDecoder.CodebookData']
             ) -> Tuple[List[int], List[ResidueData]]:
         """Returns tuple of residues types AND related residues' data
 
         Input data from current logical stream"""
         vorbis_residue_types: List[int] = []
         vorbis_residue_configurations: (
-            List['ResiduesDecoder.ResidueData']) = []
+            List['SetupHeaderDecoder.ResidueData']) = []
 
         for i in range(self._read_bits_for_int(6) + 1):
             vorbis_residue_types.append(self._read_bits_for_int(16))
@@ -535,10 +536,10 @@ class ResiduesDecoder(AbstractDecoder):
 
     def _decode_residue_config(
             self,
-            codebooks_configs: List[CodebookDecoder.CodebookData]
+            codebooks_configs: List['SetupHeaderDecoder.CodebookData']
             ) -> ResidueData:
         """Method decodes residue configuration"""
-        result_data: 'ResiduesDecoder.ResidueData' = self.ResidueData()
+        result_data: 'SetupHeaderDecoder.ResidueData' = self.ResidueData()
 
         result_data.residue_begin = self._read_bits_for_int(24)
         result_data.residue_end = self._read_bits_for_int(24)
@@ -554,12 +555,12 @@ class ResiduesDecoder(AbstractDecoder):
         # Not obvious way to code things, so errors can occur with
         # [coded_codebook]
 
-        coded_codebook: CodebookDecoder.CodebookData = (
+        coded_codebook: SetupHeaderDecoder.CodebookData = (
             codebooks_configs[
                 result_data.residue_classifications
                 ^ result_data.residue_classbook])
 
-        residue_classbook_codebook: CodebookDecoder.CodebookData = (
+        residue_classbook_codebook: SetupHeaderDecoder.CodebookData = (
             codebooks_configs[result_data.residue_classbook])
 
         if (coded_codebook.codebook_dimensions >
@@ -615,24 +616,10 @@ class ResiduesDecoder(AbstractDecoder):
 
         return result_data
 
-
-class MappingsDecoder(AbstractDecoder):
-    class MappingData:
-        vorbis_mapping_submaps: int
-        vorbis_mapping_coupling_steps: int
-        vorbis_mapping_magnitude: List[int]
-        vorbis_mapping_angle: List[int]
-        vorbis_mapping_mux: List[int]
-        vorbis_mapping_submap_floor: List[int]
-        vorbis_mapping_submap_residue: List[int]
-
     # _audio_channels: int
     # _max_floor_type: int
     # _max_residue_type: int
-
-    def __init__(self, data_reader: 'DataReader'):
-        super().__init__(data_reader)
-
+    # TODO: 'read_mappings'
     # def read_mappings(
     #         self,
     #         audio_channels: int,
@@ -736,6 +723,38 @@ class MappingsDecoder(AbstractDecoder):
     #                 + str(result_data.vorbis_mapping_submap_residue[j]))
     #
     #     return result_data
+
+    # TODO: '_read_modes_configs'
+    def _read_modes_configs(
+            self, mappings_amount: int) -> List[Tuple[bool, int]]:
+        """
+
+        Input data from current logical stream
+        """
+        modes_configs: List[Tuple[bool, int]] = []
+
+        for i in range(self._read_bits_for_int(6) + 1):
+            vorbis_mode_blockflag = bool(self._read_bit())
+            vorbis_mode_windowtype = self._read_bits_for_int(16)
+            vorbis_mode_transformtype = self._read_bits_for_int(16)
+            vorbis_mode_mapping = self._read_bits_for_int(8)
+
+            if vorbis_mode_windowtype != 0 or vorbis_mode_transformtype != 0:
+                raise CorruptedFileDataError(
+                    'Received incorrect [vorbis_mode_windowtype] or '
+                    '[vorbis_mode_transformtype]: '
+                    + str(vorbis_mode_windowtype)
+                    + ' '
+                    + str(vorbis_mode_transformtype))
+
+            if vorbis_mode_mapping > mappings_amount:
+                raise CorruptedFileDataError(
+                    'Received incorrect [vorbis_mode_mapping]: '
+                    + str(vorbis_mode_mapping))
+
+            modes_configs.append((vorbis_mode_blockflag, vorbis_mode_mapping))
+
+        return modes_configs
 
 
 class DataReader:
