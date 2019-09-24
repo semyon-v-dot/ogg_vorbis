@@ -279,7 +279,6 @@ class PacketsProcessor(AbstractDecoder):
                 len(current_stream.vorbis_codebook_configurations)))
 
         # Residues decoding
-        # TODO: Recheck
         (current_stream.vorbis_residue_types,
          current_stream.vorbis_residue_configurations) = (
             self._setup_header_decoder.read_residues(
