@@ -50,7 +50,7 @@ class SetupHeaderDecoder(AbstractDecoder):
         floor1_partition_class_list: List[int]
         floor1_class_dimensions: List[int]
         floor1_class_subclasses: List[int]
-        floor1_class_masterbooks: List[int]
+        floor1_class_masterbooks: List[Optional[int]]
         floor1_subclass_books: List[List[int]]
         floor1_multiplier: int
         floor1_x_list: List[int]
@@ -89,7 +89,7 @@ class SetupHeaderDecoder(AbstractDecoder):
     _sparse: bool
 
     # Data for Huffman tree decoding
-    _codebook_codewords_lengths: List[int]
+    _codebook_codewords_lengths: List[Optional[int]]
 
     # Acquired from Huffman tree decoding
     # List of decoded codewords
@@ -185,9 +185,9 @@ class SetupHeaderDecoder(AbstractDecoder):
         if self._read_bytes(3) != b'BCV':
             raise CorruptedFileDataError('Codebook sync pattern is absent')
 
-    def _read_codeword_lengths(self) -> List[int]:
+    def _read_codeword_lengths(self) -> List[Optional[int]]:
         """Method reads codewords lengths from packet data"""
-        result_codeword_lengths: List[int] = []
+        result_codeword_lengths: List[Optional[int]] = []
 
         if not self._ordered:
             for i in range(self._codebook_entries):
@@ -198,7 +198,7 @@ class SetupHeaderDecoder(AbstractDecoder):
                         result_codeword_lengths.append(
                             self._read_bits_for_int(5) + 1)
                     else:
-                        result_codeword_lengths.append(-1)
+                        result_codeword_lengths.append(None)
                 else:
                     result_codeword_lengths.append(
                         self._read_bits_for_int(5) + 1)
@@ -221,7 +221,8 @@ class SetupHeaderDecoder(AbstractDecoder):
                         "Incorrect codebook lengths coding")
 
         # Error due to 'bit_reverse' helper function
-        if any(item > 32 for item in result_codeword_lengths):
+        if any(item is not None and item > 32
+               for item in result_codeword_lengths):
             raise CorruptedFileDataError("Entry length greater than 32")
 
         return result_codeword_lengths
@@ -231,7 +232,7 @@ class SetupHeaderDecoder(AbstractDecoder):
         result_codewords: List[str] = []
 
         for start_entry in range(self._codebook_entries):
-            if self._codebook_codewords_lengths[start_entry] != -1:
+            if self._codebook_codewords_lengths[start_entry] is not None:
                 break
             result_codewords.append('')
         else:
@@ -248,12 +249,14 @@ class SetupHeaderDecoder(AbstractDecoder):
         for i in range(start_entry + 1, self._codebook_entries):
             max_available_branch = self._codebook_codewords_lengths[i]
 
-            if max_available_branch == -1:
+            if max_available_branch is None:
                 result_codewords.append('')
                 continue
+
             while (max_available_branch > 0
                    and available[max_available_branch] == 0):
                 max_available_branch -= 1
+
             assert 0 < max_available_branch < 32
 
             result = available[max_available_branch]
@@ -341,7 +344,7 @@ class SetupHeaderDecoder(AbstractDecoder):
         Extremely slow code! Use for tests ONLY!"""
         return_values: List[str] = []
         for i in range(0, self._codebook_entries):
-            if self._codebook_codewords_lengths[i] == -1:
+            if self._codebook_codewords_lengths[i] is None:
                 return_values.append('')
                 continue
 
@@ -462,7 +465,7 @@ class SetupHeaderDecoder(AbstractDecoder):
                 result_data.floor1_class_masterbooks.append(
                     self._read_bits_for_int(8))
             else:
-                result_data.floor1_class_masterbooks.append(-1)
+                result_data.floor1_class_masterbooks.append(None)
 
             result_data.floor1_subclass_books.append([])
 
@@ -484,8 +487,8 @@ class SetupHeaderDecoder(AbstractDecoder):
                     self._read_bits_for_int(range_bits))
                 result_data.floor1_values += 1
 
-        if any(item > codebooks_amount for item in
-               result_data.floor1_class_masterbooks):
+        if any(item is not None and item > codebooks_amount
+               for item in result_data.floor1_class_masterbooks):
             raise CorruptedFileDataError(
                 'Received [floor1_class_masterbooks] item greater than '
                 f'{codebooks_amount}: '

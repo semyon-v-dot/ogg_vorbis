@@ -160,7 +160,7 @@ class CodebookDecodingTests(TestCase):
             len(codebook_decoder._codebook_codewords_lengths), 81)
         self.assertEqual(
             codebook_decoder._codebook_codewords_lengths[:8],
-            [1, 5, 5, -1, 5, 5, -1, 5])
+            [1, 5, 5, None, 5, 5, None, 5])
 
         self.assertEqual(
             len(codebook_decoder._codebook_codewords), 81)
@@ -404,7 +404,7 @@ class FloorsDecodingTests(TestCase):
         # i = 0
         self.assertEqual(2, first_floor_data.floor1_class_dimensions[0])
         self.assertEqual(0, first_floor_data.floor1_class_subclasses[0])
-        self.assertEqual(-1, first_floor_data.floor1_class_masterbooks[0])
+        self.assertEqual(None, first_floor_data.floor1_class_masterbooks[0])
         self.assertEqual(3, first_floor_data.floor1_subclass_books[0][0])
 
         # i = 1
@@ -470,7 +470,7 @@ class HuffmanTests(TestCase):
 
     def test_1_Huffman(self):
         self._codebook_decoder._codebook_codewords_lengths = [
-            -1, 2, 4, 4, 4, 4, 2, 3, 3]
+            None, 2, 4, 4, 4, 4, 2, 3, 3]
         self._codebook_decoder._codebook_entries = 9
 
         self._test_huffman([
