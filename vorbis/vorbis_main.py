@@ -80,6 +80,7 @@ class PacketsProcessor(AbstractDecoder):
         self.logical_streams = []
         self._codebook_decoder = CodebookDecoder(self._data_reader)
         self._floors_decoder = FloorsDecoder(self._data_reader)
+        self._residues_decoder = ResiduesDecoder(self._data_reader)
 
     def _basic_file_format_check(self, filename):
         """Method on a basic level checks if given file is ogg vorbis format"""
@@ -192,17 +193,17 @@ class PacketsProcessor(AbstractDecoder):
 
         # Floors decoding
         (current_stream.vorbis_floor_types,
-         current_stream.vorbis_codebook_configurations) = (
+         current_stream.vorbis_floor_configurations) = (
             self._floors_decoder.read_floors(
                 len(current_stream.vorbis_codebook_configurations)))
 
-        # # Residues decoding
-        # # TODO: Recheck
-        # (current_stream.vorbis_residue_types,
-        #  current_stream.vorbis_residue_configurations) = (
-        #     self._residues_decoder.read_residues(
-        #         current_stream.vorbis_codebook_configurations))
-        #
+        # Residues decoding
+        # TODO: Recheck
+        (current_stream.vorbis_residue_types,
+         current_stream.vorbis_residue_configurations) = (
+            self._residues_decoder.read_residues(
+                current_stream.vorbis_codebook_configurations))
+
         # # Mappings decoding
         # # TODO: Recheck
         # current_stream.vorbis_mapping_configurations = (
@@ -210,17 +211,19 @@ class PacketsProcessor(AbstractDecoder):
         #         current_stream.audio_channels,
         #         current_stream.vorbis_floor_types,
         #         current_stream.vorbis_residue_types))
-        #
+
         # # Modes decoding
         # # TODO: Recheck
         # current_stream.vorbis_mode_configurations = self._read_modes_configs(
         #     len(current_stream.vorbis_mapping_configurations))
-        #
+
         # # Framing bit check
         # if self._read_bit() != 0:
         #     raise CorruptedFileDataError(
         #         'Framing bit lost while setup header decoding')
 
+    # WouldBeBetter: Unite all setup header data decoders into one big
+    #  decoder and move '_read_modes_configs' method there
     def _read_modes_configs(
             self, mappings_amount: int) -> List[Tuple[bool, int]]:
         """

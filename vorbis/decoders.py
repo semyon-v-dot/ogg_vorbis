@@ -38,9 +38,6 @@ class AbstractDecoder:
 
 class CodebookDecoder(AbstractDecoder):
     """Class represents decoder of vorbis codebooks"""
-    # Fields in this class cannot be moved to related methods as arguments
-    # for refactoring needs. Complexity of code will rise due to such a moving!
-
     class CodebookData:
         """Output data from codebook decoding"""
         codebook_codewords: List[str]
@@ -507,22 +504,18 @@ class ResiduesDecoder(AbstractDecoder):
         residue_classifications: int
         residue_classbook: int
         residue_cascade: List[int]
-        residue_books: List[List[int]]
-
-    _codebooks_configs: List[CodebookDecoder.CodebookData]
+        residue_books: List[List[Optional[int]]]
 
     def __init__(self, data_reader: 'DataReader'):
         super().__init__(data_reader)
 
     def read_residues(
             self,
-            codebook_configs: List[CodebookDecoder.CodebookData]
+            codebooks_configs: List[CodebookDecoder.CodebookData]
             ) -> Tuple[List[int], List[ResidueData]]:
         """Returns tuple of residues types AND related residues' data
 
         Input data from current logical stream"""
-        self._codebooks_configs = codebook_configs
-
         vorbis_residue_types: List[int] = []
         vorbis_residue_configurations: (
             List['ResiduesDecoder.ResidueData']) = []
@@ -532,7 +525,7 @@ class ResiduesDecoder(AbstractDecoder):
 
             if 0 <= vorbis_residue_types[i] < 3:
                 vorbis_residue_configurations.append(
-                    self._decode_residue_config())
+                    self._decode_residue_config(codebooks_configs))
             else:
                 raise CorruptedFileDataError(
                     'Not supported residue type: '
@@ -540,8 +533,10 @@ class ResiduesDecoder(AbstractDecoder):
 
         return vorbis_residue_types, vorbis_residue_configurations
 
-    # TODO: Recheck
-    def _decode_residue_config(self) -> ResidueData:
+    def _decode_residue_config(
+            self,
+            codebooks_configs: List[CodebookDecoder.CodebookData]
+            ) -> ResidueData:
         """Method decodes residue configuration"""
         result_data: 'ResiduesDecoder.ResidueData' = self.ResidueData()
 
@@ -551,23 +546,36 @@ class ResiduesDecoder(AbstractDecoder):
         result_data.residue_classifications = self._read_bits_for_int(6) + 1
         result_data.residue_classbook = self._read_bits_for_int(8)
 
-        print(len(self._codebooks_configs))
-
-        if result_data.residue_classbook > len(self._codebooks_configs):
+        if result_data.residue_classbook > len(codebooks_configs):
             raise CorruptedFileDataError(
                 'Received incorrect [residue_classbook]'
                 + str(result_data.residue_classbook))
 
-        # If [residue_classifications]ˆ[residue_classbook].dimensions exceeds
-        # [residue_classbook].entries, the bitstream should be regarded to be
-        # undecodable. ???
+        # Not obvious way to code things, so errors can occur with
+        # [coded_codebook]
+
+        coded_codebook: CodebookDecoder.CodebookData = (
+            codebooks_configs[
+                result_data.residue_classifications
+                ^ result_data.residue_classbook])
+
+        residue_classbook_codebook: CodebookDecoder.CodebookData = (
+            codebooks_configs[result_data.residue_classbook])
+
+        if (coded_codebook.codebook_dimensions >
+                residue_classbook_codebook.codebook_entries):
+            raise CorruptedFileDataError(
+                '[residue_classbook].dimensions exceeds '
+                '[residue_classbook].entries: '
+                + str(coded_codebook.codebook_dimensions) + ' > '
+                + str(residue_classbook_codebook.codebook_entries))
 
         result_data.residue_cascade = []
 
         for i in range(result_data.residue_classifications):
+            high_bits: int = 0
             low_bits: int = self._read_bits_for_int(3)
             bitflag: bool = bool(self._read_bit())
-            high_bits: int = 0
 
             if bitflag:
                 high_bits = self._read_bits_for_int(5)
@@ -584,22 +592,26 @@ class ResiduesDecoder(AbstractDecoder):
                     result_data.residue_books[i].append(
                         self._read_bits_for_int(8))
 
-                    if (result_data.residue_books[i][j]
-                            > len(self._codebooks_configs)):
-                        raise CorruptedFileDataError(
-                            'Received incorrect [residue_books] item, '
-                            'value is greater than codebook number: '
-                            + str(result_data.residue_books[i][j]))
+                    # Some checks next
 
-                    if (self._codebooks_configs[
-                        result_data.residue_books[i][j]].codebook_lookup_type
-                            == 0):
+                    if (result_data.residue_books[i][j] >
+                            len(codebooks_configs)):
+                        raise CorruptedFileDataError(
+                            'Last received into [residue_books] item is '
+                            'incorrect, greater than codebook number '
+                            f'[{len(codebooks_configs)}]: '
+                            + str(result_data.residue_books))
+
+                    if (codebooks_configs[result_data.residue_books[i][j]]
+                            .codebook_lookup_type == 0):
                         raise CorruptedFileDataError(
                             'Received incorrect [residue_books] item, '
-                            'lookup_type is zero: '
-                            + str(result_data.residue_books[i][j]))
+                            'lookup type of '
+                            f'[{result_data.residue_books[i][j]}] '
+                            'codebook is zero')
+
                 else:
-                    result_data.residue_books[i].append(-1)
+                    result_data.residue_books[i].append(None)
 
         return result_data
 
@@ -614,9 +626,9 @@ class MappingsDecoder(AbstractDecoder):
         vorbis_mapping_submap_floor: List[int]
         vorbis_mapping_submap_residue: List[int]
 
-    _audio_channels: int
-    _max_floor_type: int
-    _max_residue_type: int
+    # _audio_channels: int
+    # _max_floor_type: int
+    # _max_residue_type: int
 
     def __init__(self, data_reader: 'DataReader'):
         super().__init__(data_reader)
