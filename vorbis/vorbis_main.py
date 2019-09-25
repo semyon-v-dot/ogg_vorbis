@@ -1,68 +1,19 @@
-from typing import List, Tuple
+from typing import List
 
 from .ogg import CorruptedFileDataError, FileDataException
 from .decoders import (
     DataReader,
     AbstractDecoder,
     SetupHeaderDecoder,
-    EndOfPacketException)
+    EndOfPacketException,
+    LogicalStreamData)
 
 
 class PacketsProcessor(AbstractDecoder):
     """Class for processing packets of vorbis bitstream"""
-    class LogicalStream:
-        """Contains logical stream info"""
-        # __init__
-
-        byte_position: int
-
-        # Identification header data
-
-        audio_channels: int
-        audio_sample_rate: int
-
-        # From docs:
-        # "The bitrate fields [...] are used only as hints. [...]
-        # * All three fields set to the same value implies a fixed rate, or
-        # tightly bounded, nearly fixed-rate bitstream
-        # * Only nominal set implies a VBR or ABR stream that averages the
-        # nominal bitrate
-        # * Maximum and or minimum set implies a VBR bitstream that obeys the
-        # bitrate limits
-        # * None set indicates the encoder does not care to speculate"
-        bitrate_maximum: int
-        bitrate_nominal: int
-        bitrate_minimum: int
-
-        blocksize_0: int
-        blocksize_1: int
-
-        # Comment header data
-
-        comment_header_decoding_failed: bool
-        vendor_string: str
-        user_comment_list_strings: List[str]
-
-        # Setup header data
-
-        vorbis_codebook_configurations: List[SetupHeaderDecoder.CodebookData]
-
-        vorbis_floor_types: List[int]
-        vorbis_floor_configurations: List[SetupHeaderDecoder.FloorData]
-
-        vorbis_residue_types: List[int]
-        vorbis_residue_configurations: List[SetupHeaderDecoder.ResidueData]
-
-        vorbis_mapping_configurations: List[SetupHeaderDecoder.MappingData]
-
-        vorbis_mode_configurations: List[Tuple[bool, int]]
-
-        def __init__(self, input_byte_position: int):
-            self.byte_position = input_byte_position
-
     _setup_header_decoder: SetupHeaderDecoder
 
-    logical_streams: List[LogicalStream]
+    logical_streams: List[LogicalStreamData]
 
     def __init__(self, filename: str):
         self._data_reader: DataReader = DataReader(filename)
@@ -114,7 +65,7 @@ class PacketsProcessor(AbstractDecoder):
             self._data_reader.read_packet()
             packet_type = self._read_bytes(1)
             while True:
-                self.logical_streams.append(self.LogicalStream(
+                self.logical_streams.append(LogicalStreamData(
                     self._data_reader.get_packet_global_position()))
                 if packet_type != b'\x01':
                     raise CorruptedFileDataError(
@@ -162,7 +113,7 @@ class PacketsProcessor(AbstractDecoder):
         header"""
         self._check_header_sync_pattern()
 
-        current_stream: 'PacketsProcessor.LogicalStream' = (
+        current_stream: LogicalStreamData = (
             self.logical_streams[-1])
 
         vorbis_version = self._read_bits_for_int(32)
@@ -213,7 +164,7 @@ class PacketsProcessor(AbstractDecoder):
 [logical_stream] object"""
         self._check_header_sync_pattern()
 
-        current_stream: 'PacketsProcessor.LogicalStream' = (
+        current_stream: LogicalStreamData = (
             self.logical_streams[-1])
 
         vendor_length = self._read_bits_for_int(32)

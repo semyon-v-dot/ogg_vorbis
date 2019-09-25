@@ -16,6 +16,57 @@ class EndOfPacketException(FileDataException):
     pass
 
 
+class LogicalStreamData:
+    """Contains logical stream data"""
+    # __init__
+
+    byte_position: int
+
+    # Identification header data
+
+    audio_channels: int
+    audio_sample_rate: int
+
+    # From docs:
+    # "The bitrate fields [...] are used only as hints. [...]
+    # * All three fields set to the same value implies a fixed rate, or
+    # tightly bounded, nearly fixed-rate bitstream
+    # * Only nominal set implies a VBR or ABR stream that averages the
+    # nominal bitrate
+    # * Maximum and or minimum set implies a VBR bitstream that obeys the
+    # bitrate limits
+    # * None set indicates the encoder does not care to speculate"
+    bitrate_maximum: int
+    bitrate_nominal: int
+    bitrate_minimum: int
+
+    blocksize_0: int
+    blocksize_1: int
+
+    # Comment header data
+
+    comment_header_decoding_failed: bool
+    vendor_string: str
+    user_comment_list_strings: List[str]
+
+    # Setup header data
+
+    vorbis_codebook_configurations: List['SetupHeaderDecoder.CodebookData']
+
+    vorbis_floor_types: List[int]
+    vorbis_floor_configurations: List['SetupHeaderDecoder.FloorData']
+
+    vorbis_residue_types: List[int]
+    vorbis_residue_configurations: List['SetupHeaderDecoder.ResidueData']
+
+    vorbis_mapping_configurations: List['SetupHeaderDecoder.MappingData']
+
+    vorbis_mode_configurations: List[Tuple[bool, int]]
+
+    def __init__(self, input_byte_position: int):
+        self.byte_position = input_byte_position
+
+
 class AbstractDecoder:
     """Methods shortcuts for _DataReader methods
 
@@ -622,110 +673,106 @@ class SetupHeaderDecoder(AbstractDecoder):
     # _audio_channels: int
     # _max_floor_type: int
     # _max_residue_type: int
-    # TODO: 'read_mappings'
-    # def read_mappings(
-    #         self,
-    #         audio_channels: int,
-    #         floor_types: List[int],
-    #         residue_types: List[int]) -> List[MappingData]:
-    #     """Method processes mappings for current logical bitstream
-    #
-    #     Input data from current logical stream"""
-    #     self._audio_channels = audio_channels
-    #     self._max_floor_type = max(floor_types)
-    #     self._max_residue_type = max(residue_types)
-    #
-    #     vorbis_mapping_configurations: (
-    #     List['MappingsDecoder.MappingData']) = []
-    #
-    #     for i in range(self._read_bits_for_int(6) + 1):
-    #         vorbis_mapping_configurations.append(
-    #             self._decode_mapping_config())
-    #
-    #     return vorbis_mapping_configurations
-    #
-    # def _decode_mapping_config(self) -> MappingData:
-    #     result_data: 'MappingsDecoder.MappingData' = self.MappingData()
-    #
-    #     mapping_type = self._read_bits_for_int(16)  # Line from docs
-    #
-    #     if mapping_type != 0:
-    #         raise CorruptedFileDataError('Nonzero mapping type')
-    #
-    #     result_data.vorbis_mapping_submaps = 1
-    #
-    #     if bool(self._read_bit()):
-    #         result_data.vorbis_mapping_submaps = (
-    #             self._read_bits_for_int(4) + 1)
-    #
-    #     result_data.vorbis_mapping_coupling_steps = 0
-    #     result_data.vorbis_mapping_magnitude = []
-    #     result_data.vorbis_mapping_angle = []
-    #
-    #     if self._read_bit():
-    #         vorbis_mapping_coupling_steps = self._read_bits_for_int(8) + 1
-    #
-    #         for j in range(vorbis_mapping_coupling_steps):
-    #             result_data.vorbis_mapping_magnitude.append(
-    #                 self._read_bits_for_int(
-    #                     ilog(self._audio_channels - 1)))
-    #             result_data.vorbis_mapping_angle.append(
-    #                 self._read_bits_for_int(
-    #                     ilog(self._audio_channels - 1)))
-    #
-    #             if (result_data.vorbis_mapping_angle[j]
-    #                     == result_data.vorbis_mapping_magnitude[j]
-    #                     or result_data.vorbis_mapping_magnitude[j]
-    #                     > self._audio_channels - 1
-    #                     or result_data.vorbis_mapping_angle[j]
-    #                     > self._audio_channels - 1):
-    #                 raise CorruptedFileDataError(
-    #                     'Received incorrect [vorbis_mapping_angle] '
-    #                     'or [vorbis_mapping_magnitude] item(s)')
-    #
-    #     reserved_field = self._read_bits_for_int(2)  # Line from docs
-    #
-    #     if reserved_field != 0:
-    #         raise CorruptedFileDataError('[reserved_field] is nonzero')
-    #
-    #     result_data.vorbis_mapping_mux = []
-    #
-    #     if result_data.vorbis_mapping_submaps > 1:
-    #         for j in range(self._audio_channels):
-    #             result_data.vorbis_mapping_mux.append(
-    #                 self._read_bits_for_int(4))
-    #
-    #             # TODO: ???
-    #             if (result_data.vorbis_mapping_mux
-    #                     > result_data.vorbis_mapping_submaps - 1):
-    #                 raise CorruptedFileDataError(
-    #                     'Received incorrect [vorbis_mapping_mux] item')
-    #
-    #     result_data.vorbis_mapping_submap_floor = []
-    #     result_data.vorbis_mapping_submap_residue = []
-    #
-    #     for j in range(result_data.vorbis_mapping_submaps):
-    #         self._read_bits_for_int(8)  # Line from docs  # Placeholder
-    #         result_data.vorbis_mapping_submap_floor.append(
-    #             self._read_bits_for_int(8))
-    #
-    #         if (result_data.vorbis_mapping_submap_floor[j]
-    #                 > self._max_floor_type):
-    #             raise CorruptedFileDataError(
-    #                 'Received incorrect [vorbis_mapping_submap_floor] item: '
-    #                 + str(result_data.vorbis_mapping_submap_floor[j]))
-    #
-    #         result_data.vorbis_mapping_submap_residue.append(
-    #             self._read_bits_for_int(8))
-    #
-    #         if (result_data.vorbis_mapping_submap_residue[j]
-    #                 > self._max_residue_type):
-    #             raise CorruptedFileDataError(
-    #                 'Received incorrect [vorbis_mapping_submap_residue] '
-    #                 'item: '
-    #                 + str(result_data.vorbis_mapping_submap_residue[j]))
-    #
-    #     return result_data
+
+    # TODO: read_mappings
+    def read_mappings(
+            self, current_stream_data: LogicalStreamData) -> List[MappingData]:
+        """Method processes mappings for current logical bitstream
+
+        Input data from current logical stream"""
+        vorbis_mapping_configurations: (
+            List['SetupHeaderDecoder.MappingData']) = []
+
+        for i in range(self._read_bits_for_int(6) + 1):
+            vorbis_mapping_configurations.append(
+                self._decode_mapping_config(current_stream_data))
+
+        return vorbis_mapping_configurations
+
+    # TODO: _decode_mapping_config
+    def _decode_mapping_config(
+            self, current_stream_data: LogicalStreamData) -> MappingData:
+        result_data: 'SetupHeaderDecoder.MappingData' = self.MappingData()
+
+        mapping_type = self._read_bits_for_int(16)  # Reserved field
+
+        if mapping_type != 0:
+            raise CorruptedFileDataError('Nonzero mapping type')
+
+        result_data.vorbis_mapping_submaps = 1
+
+        if bool(self._read_bit()):
+            result_data.vorbis_mapping_submaps = (
+                self._read_bits_for_int(4) + 1)
+
+        result_data.vorbis_mapping_coupling_steps = 0
+        result_data.vorbis_mapping_magnitude = []
+        result_data.vorbis_mapping_angle = []
+
+        if self._read_bit():
+            vorbis_mapping_coupling_steps = self._read_bits_for_int(8) + 1
+
+            for j in range(vorbis_mapping_coupling_steps):
+                result_data.vorbis_mapping_magnitude.append(
+                    self._read_bits_for_int(
+                        ilog(self._audio_channels - 1)))
+                result_data.vorbis_mapping_angle.append(
+                    self._read_bits_for_int(
+                        ilog(self._audio_channels - 1)))
+
+                if (result_data.vorbis_mapping_angle[j]
+                        == result_data.vorbis_mapping_magnitude[j]
+                        or result_data.vorbis_mapping_magnitude[j]
+                        > self._audio_channels - 1
+                        or result_data.vorbis_mapping_angle[j]
+                        > self._audio_channels - 1):
+                    raise CorruptedFileDataError(
+                        'Received incorrect [vorbis_mapping_angle] '
+                        'or [vorbis_mapping_magnitude] item(s)')
+
+        reserved_field = self._read_bits_for_int(2)  # Line from docs
+
+        if reserved_field != 0:
+            raise CorruptedFileDataError('[reserved_field] is nonzero')
+
+        result_data.vorbis_mapping_mux = []
+
+        if result_data.vorbis_mapping_submaps > 1:
+            for j in range(self._audio_channels):
+                result_data.vorbis_mapping_mux.append(
+                    self._read_bits_for_int(4))
+
+                # TODO: ???
+                if (result_data.vorbis_mapping_mux
+                        > result_data.vorbis_mapping_submaps - 1):
+                    raise CorruptedFileDataError(
+                        'Received incorrect [vorbis_mapping_mux] item')
+
+        result_data.vorbis_mapping_submap_floor = []
+        result_data.vorbis_mapping_submap_residue = []
+
+        for j in range(result_data.vorbis_mapping_submaps):
+            self._read_bits_for_int(8)  # Line from docs  # Placeholder
+            result_data.vorbis_mapping_submap_floor.append(
+                self._read_bits_for_int(8))
+
+            if (result_data.vorbis_mapping_submap_floor[j]
+                    > self._max_floor_type):
+                raise CorruptedFileDataError(
+                    'Received incorrect [vorbis_mapping_submap_floor] item: '
+                    + str(result_data.vorbis_mapping_submap_floor[j]))
+
+            result_data.vorbis_mapping_submap_residue.append(
+                self._read_bits_for_int(8))
+
+            if (result_data.vorbis_mapping_submap_residue[j]
+                    > self._max_residue_type):
+                raise CorruptedFileDataError(
+                    'Received incorrect [vorbis_mapping_submap_residue] '
+                    'item: '
+                    + str(result_data.vorbis_mapping_submap_residue[j]))
+
+        return result_data
 
     # TODO: '_read_modes_configs'
     def _read_modes_configs(
