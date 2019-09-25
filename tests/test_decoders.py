@@ -509,8 +509,143 @@ class SetupHeaderDecodingTests(TestCase):
         self.assertEqual(0b0001100, first_floor_data.floor1_x_list[2])
         self.assertEqual(0b010111_0, first_floor_data.floor1_x_list[3])
 
-    # TODO: def test_one_residue_decoding(self):
-    # # "Header decode for all three residue types is identical"
+    # WouldBeBetter: Test situation when [bitflag] is set
+    def test_one_residue_decoding(self):
+        """
+        From docs:
+        "Header decode for all three residue types is identical"
+        """
+        data_reader = DataReader(PATH_TEST_1)
+        setup_header_decoder: SetupHeaderDecoder = (
+            SetupHeaderDecoder(data_reader))
+
+        data_reader.read_packet()
+        data_reader.read_packet()
+        data_reader.read_packet()
+
+        data_reader.byte_pointer = 8
+
+        codebooks_configs: List[SetupHeaderDecoder.CodebookData] = []
+
+        for i in range(44):
+            codebooks_configs.append(setup_header_decoder.read_codebook())
+
+        for i in range(data_reader.read_bits_for_int(6) + 1):
+            placeholder = data_reader.read_bits_for_int(16)
+
+            self.assertEqual(placeholder, 0)
+
+        setup_header_decoder.read_floors(44)
+
+        # Current global position: (122566, 5)
+        #
+        # -- -- 3A 10 |                     0011_1010 0001_0000
+        # 00 00 00 00 | 0000_0000 0000_0000 0000_0000 0000_0000
+        # 00 08 00 78 | 0000_0000 0000_1000 0000_0000 0111_1000
+        # 00 00 48 36 | 0000_0000 0000_0000 0100_1000 0011_0110
+        # 80 88 68 66 | 1000_0000 1000_1000 0110_1000 0110_0110
+        # E6 38 3A 3C | 1110_0110 0011_1000 0011_1010 0011_1100
+        #
+        # [bitstream]
+        # (001) (1_1010)-> previous things
+        # (0001_0) [000|001]-> vorbis_residue_count
+        # (0000_0000|0001_0)
+        # (0000_0) [000|0000_0000||0001_0]-> vorbis_residue_types[0]
+        # (0000_0000|0000_0)
+        # (0000_0000|0000_0000||0000_0)
+        # (0000_0) [000|0000_0000||0000_0000|||0000_0]-> residue_begin
+        # (0000_1000|0000_0)
+        # (0000_0000|0000_1000||0000_0)
+        # (0111_1) [000|0000_0000||0000_1000|||0000_0]-> residue_end
+        # (0000_0000|0111_1)
+        # (0000_0000|0000_0000||0111_1)
+        # (0100_1) [000|0000_0000||0000_0000|||0111_1]-> residue_partition_size
+        # (0011_011) [0|0100_1]-> residue_classifications
+        # (100) [0]-> bitflag [000]-> low_bits [0|0011_011]-> residue_classbook
+        # (100) [0]-> bitflag [100]-> low_bits [0]-> bitflag | [100]-> low_bits
+        # (011) [0]-> bitflag [100]-> low_bits [0]-> bitflag | [100]-> low_bits
+        # [011] [0] [011] [0] | [011]
+        # [111] [0] [011] [0]
+        # (0011_100) [0]
+        # (0011_101) [0|0011_100]-> residue_books[1][2]
+        # 0011_110 [0|0011_101]-> residue_books[2][2]
+
+        # [vorbis_residue_count] = 2
+
+        residue_types: List[int]
+        residue_configurations: List[SetupHeaderDecoder.ResidueData]
+
+        (residue_types, residue_configurations) = (
+            setup_header_decoder.read_residues(codebooks_configs))
+
+        self.assertEqual(2, len(residue_types))
+        self.assertEqual(2, len(residue_configurations))
+
+        self.assertEqual(2, residue_types[0])
+
+        self.assertEqual(0, residue_configurations[0].residue_begin)
+        self.assertEqual(
+            0b0000000_00000000_10000000_0,
+            residue_configurations[0].residue_end)
+        self.assertEqual(
+            0b0000000_00000000_00000111_1 + 1,
+            residue_configurations[0].residue_partition_size)
+        self.assertEqual(
+            0b00100_1 + 1,  # 10
+            residue_configurations[0].residue_classifications)
+        self.assertEqual(
+            0b00011_011,
+            residue_configurations[0].residue_classbook)
+
+        high_bits: int
+        low_bits: int
+
+        # iterate [i] over the range 0 ... [residue_classifications] - 1
+
+        # i = 0
+        #
+        high_bits = 0
+        low_bits = 0
+        # bitflag = 0
+        self.assertEqual(
+            high_bits * 8 + low_bits,
+            residue_configurations[0].residue_cascade[0])
+
+        # i = 1
+        #
+        high_bits = 0
+        low_bits = 0b100
+        # bitflag = 0
+        self.assertEqual(
+            high_bits * 8 + low_bits,
+            residue_configurations[0].residue_cascade[1])
+
+        self.assertEqual(
+            0 * 8 + 0b100,
+            residue_configurations[0].residue_cascade[2])
+
+        # iterate [i] over the range 0 ... [residue_classifications] - 1
+
+        # i = 0
+
+        # iterate [j] over the range 0 ... 7
+
+        self.assertEqual(
+            [None, None, None, None, None, None, None, None],
+            residue_configurations[0].residue_books[0])
+
+        # i = 1
+
+        self.assertEqual(
+            [None, None, 0b00011_100, None, None, None, None, None],
+            residue_configurations[0].residue_books[1])
+
+        # i = 2
+
+        self.assertEqual(
+            [None, None, 0b00011_101, None, None, None, None, None],
+            residue_configurations[0].residue_books[2])
+
     #
     # TODO: def test_one_mapping_decoding(self):
     #
