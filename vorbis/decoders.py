@@ -661,9 +661,10 @@ class SetupHeaderDecoder(AbstractDecoder):
         result_data.vorbis_mapping_angle = []
 
         if bool(self._read_bit()):
-            vorbis_mapping_coupling_steps = self._read_bits_for_int(8) + 1
+            result_data.vorbis_mapping_coupling_steps = (
+                self._read_bits_for_int(8) + 1)
 
-            for j in range(vorbis_mapping_coupling_steps):
+            for j in range(result_data.vorbis_mapping_coupling_steps):
                 result_data.vorbis_mapping_magnitude.append(
                     self._read_bits_for_int(
                         ilog(audio_channels - 1)))
