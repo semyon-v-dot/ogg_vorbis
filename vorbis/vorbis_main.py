@@ -291,15 +291,15 @@ class PacketsProcessor(AbstractDecoder):
                 len(current_stream.vorbis_floor_types),
                 len(current_stream.vorbis_residue_types)))
 
-        # # Modes decoding
-        # # TODO: Recheck
-        # current_stream.vorbis_mode_configurations = self._read_modes_configs(
-        #     len(current_stream.vorbis_mapping_configurations))
+        # Modes decoding
+        current_stream.vorbis_mode_configurations = (
+            self._setup_header_decoder.read_modes_configs(
+                len(current_stream.vorbis_mapping_configurations)))
 
-        # # Framing bit check
-        # if self._read_bit() != 0:
-        #     raise CorruptedFileDataError(
-        #         'Framing bit lost while setup header decoding')
+        # Framing bit check
+        if self._read_bit() == 0:
+            raise CorruptedFileDataError(
+                'Framing bit lost while setup header decoding')
 
     def _check_header_sync_pattern(self):
         """Method checks if there is a header sync pattern in packet data"""

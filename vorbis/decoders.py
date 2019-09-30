@@ -726,8 +726,7 @@ class SetupHeaderDecoder(AbstractDecoder):
 
         return result_data
 
-    # TODO: '_read_modes_configs'
-    def _read_modes_configs(
+    def read_modes_configs(
             self, mappings_amount: int) -> List[Tuple[bool, int]]:
         """
 
@@ -749,7 +748,7 @@ class SetupHeaderDecoder(AbstractDecoder):
                     + ' '
                     + str(vorbis_mode_transformtype))
 
-            if vorbis_mode_mapping > mappings_amount:
+            if vorbis_mode_mapping >= mappings_amount:
                 raise CorruptedFileDataError(
                     'Received incorrect [vorbis_mode_mapping]: '
                     + str(vorbis_mode_mapping))
