@@ -244,7 +244,6 @@ class PacketsProcessor(AbstractDecoder):
         if not bool(self._read_bit):  # framing bit
             current_stream.comment_header_decoding_failed = True
 
-    # TODO: '_process_setup_header'
     def _process_setup_header(self):
         """Processes setup header info
 
