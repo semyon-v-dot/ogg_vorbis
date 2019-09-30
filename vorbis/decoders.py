@@ -16,57 +16,6 @@ class EndOfPacketException(FileDataException):
     pass
 
 
-class LogicalStreamData:
-    """Contains logical stream data"""
-    # __init__
-
-    byte_position: int
-
-    # Identification header data
-
-    audio_channels: int
-    audio_sample_rate: int
-
-    # From docs:
-    # "The bitrate fields [...] are used only as hints. [...]
-    # * All three fields set to the same value implies a fixed rate, or
-    # tightly bounded, nearly fixed-rate bitstream
-    # * Only nominal set implies a VBR or ABR stream that averages the
-    # nominal bitrate
-    # * Maximum and or minimum set implies a VBR bitstream that obeys the
-    # bitrate limits
-    # * None set indicates the encoder does not care to speculate"
-    bitrate_maximum: int
-    bitrate_nominal: int
-    bitrate_minimum: int
-
-    blocksize_0: int
-    blocksize_1: int
-
-    # Comment header data
-
-    comment_header_decoding_failed: bool
-    vendor_string: str
-    user_comment_list_strings: List[str]
-
-    # Setup header data
-
-    vorbis_codebook_configurations: List['SetupHeaderDecoder.CodebookData']
-
-    vorbis_floor_types: List[int]
-    vorbis_floor_configurations: List['SetupHeaderDecoder.FloorData']
-
-    vorbis_residue_types: List[int]
-    vorbis_residue_configurations: List['SetupHeaderDecoder.ResidueData']
-
-    vorbis_mapping_configurations: List['SetupHeaderDecoder.MappingData']
-
-    vorbis_mode_configurations: List[Tuple[bool, int]]
-
-    def __init__(self, input_byte_position: int):
-        self.byte_position = input_byte_position
-
-
 class AbstractDecoder:
     """Methods shortcuts for _DataReader methods
 
@@ -671,7 +620,10 @@ class SetupHeaderDecoder(AbstractDecoder):
         return result_data
 
     def read_mappings(
-            self, current_stream_data: LogicalStreamData) -> List[MappingData]:
+            self,
+            audio_channels: int,
+            amount_of_floors: int,
+            amount_of_residues: int) -> List[MappingData]:
         """Method processes mappings for current logical bitstream
 
         Input data from current logical stream"""
@@ -680,12 +632,16 @@ class SetupHeaderDecoder(AbstractDecoder):
 
         for i in range(self._read_bits_for_int(6) + 1):
             vorbis_mapping_configurations.append(
-                self._decode_mapping_config(current_stream_data))
+                self._decode_mapping_config(
+                    audio_channels, amount_of_floors, amount_of_residues))
 
         return vorbis_mapping_configurations
 
     def _decode_mapping_config(
-            self, current_stream_data: LogicalStreamData) -> MappingData:
+            self,
+            audio_channels: int,
+            amount_of_floors: int,
+            amount_of_residues: int) -> MappingData:
         result_data: 'SetupHeaderDecoder.MappingData' = self.MappingData()
 
         mapping_type = self._read_bits_for_int(16)
@@ -710,17 +666,17 @@ class SetupHeaderDecoder(AbstractDecoder):
             for j in range(vorbis_mapping_coupling_steps):
                 result_data.vorbis_mapping_magnitude.append(
                     self._read_bits_for_int(
-                        ilog(current_stream_data.audio_channels - 1)))
+                        ilog(audio_channels - 1)))
                 result_data.vorbis_mapping_angle.append(
                     self._read_bits_for_int(
-                        ilog(current_stream_data.audio_channels - 1)))
+                        ilog(audio_channels - 1)))
 
                 if (result_data.vorbis_mapping_angle[j]
                         == result_data.vorbis_mapping_magnitude[j]
                         or result_data.vorbis_mapping_magnitude[j]
-                        > current_stream_data.audio_channels - 1
+                        > audio_channels - 1
                         or result_data.vorbis_mapping_angle[j]
-                        > current_stream_data.audio_channels - 1):
+                        > audio_channels - 1):
                     raise CorruptedFileDataError(
                         'Received incorrect [vorbis_mapping_angle] '
                         'or [vorbis_mapping_magnitude] item(s)')
@@ -733,7 +689,7 @@ class SetupHeaderDecoder(AbstractDecoder):
         result_data.vorbis_mapping_mux = []
 
         if result_data.vorbis_mapping_submaps > 1:
-            for j in range(current_stream_data.audio_channels):
+            for j in range(audio_channels):
                 result_data.vorbis_mapping_mux.append(
                     self._read_bits_for_int(4))
 
@@ -752,7 +708,7 @@ class SetupHeaderDecoder(AbstractDecoder):
                 self._read_bits_for_int(8))
 
             if (result_data.vorbis_mapping_submap_floor[j]
-                    >= len(current_stream_data.vorbis_floor_types)):
+                    >= amount_of_floors):
                 raise CorruptedFileDataError(
                     'Received incorrect [vorbis_mapping_submap_floor] item: '
                     + str(result_data.vorbis_mapping_submap_floor[j]))
@@ -761,7 +717,7 @@ class SetupHeaderDecoder(AbstractDecoder):
                 self._read_bits_for_int(8))
 
             if (result_data.vorbis_mapping_submap_residue[j]
-                    >= len(current_stream_data.vorbis_residue_types)):
+                    >= amount_of_residues):
                 raise CorruptedFileDataError(
                     'Received incorrect [vorbis_mapping_submap_residue] '
                     'item: '
