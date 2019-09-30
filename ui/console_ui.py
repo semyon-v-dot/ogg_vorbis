@@ -92,6 +92,7 @@ def _process_comment_lines(logical_stream, lines_name):
     return separator.join(lines) + '\n'
 
 
+# WouldBeBetter: Complete '_generate_setup_header'
 def _generate_setup_header(logical_stream, explain_needed: bool):
     """Function generate setup header from input [logical_stream] \
 internal values"""
