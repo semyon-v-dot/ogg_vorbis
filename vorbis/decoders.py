@@ -726,7 +726,7 @@ class SetupHeaderDecoder(AbstractDecoder):
 
         return result_data
 
-    def read_modes_configs(
+    def read_modes(
             self, mappings_amount: int) -> List[Tuple[bool, int]]:
         """
 

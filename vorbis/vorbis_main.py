@@ -293,7 +293,7 @@ class PacketsProcessor(AbstractDecoder):
 
         # Modes decoding
         current_stream.vorbis_mode_configurations = (
-            self._setup_header_decoder.read_modes_configs(
+            self._setup_header_decoder.read_modes(
                 len(current_stream.vorbis_mapping_configurations)))
 
         # Framing bit check
