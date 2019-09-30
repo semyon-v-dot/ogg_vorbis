@@ -510,7 +510,7 @@ class SetupHeaderDecodingTests(TestCase):
         self.assertEqual(0b010111_0, first_floor_data.floor1_x_list[3])
 
     # WouldBeBetter: Test situation when [bitflag] is set
-    def test_one_residue_decoding(self):
+    def test_residue_decoding(self):
         """
         From docs:
         "Header decode for all three residue types is identical"
@@ -646,9 +646,91 @@ class SetupHeaderDecodingTests(TestCase):
             [None, None, 0b00011_101, None, None, None, None, None],
             residue_configurations[0].residue_books[2])
 
-    #
-    # TODO: def test_one_mapping_decoding(self):
-    #
+    def test_mapping_decoding_second_flag_set(self):
+        data_reader = DataReader(PATH_TEST_1)
+        setup_header_decoder: SetupHeaderDecoder = (
+            SetupHeaderDecoder(data_reader))
+
+        data_reader.read_packet()
+        data_reader.read_packet()
+        data_reader.read_packet()
+
+        data_reader.byte_pointer = 8
+
+        codebooks_configs: List[SetupHeaderDecoder.CodebookData] = []
+
+        for i in range(44):
+            codebooks_configs.append(setup_header_decoder.read_codebook())
+
+        for i in range(data_reader.read_bits_for_int(6) + 1):
+            placeholder = data_reader.read_bits_for_int(16)
+
+            self.assertEqual(placeholder, 0)
+
+        # amount of floors in 'test_1.ogg' = 2
+        setup_header_decoder.read_floors(44)
+
+        # amount of residues in 'test_1.ogg' = 2
+        setup_header_decoder.read_residues(codebooks_configs)
+
+        # (122632, 7)
+        #
+        # 95 00 00 40 | 1001_0101 0000_0000 0000_0000 0100_0000
+        # 00 01 00 00 | 0000_0000 0000_0001 0000_0000 0000_0000
+        # 00 00 10 40 | 0000_0000 0000_0000 0001_0000 0100_0000
+        # 00 02 02 02 | 0000_0000 0000_0010 0000_0010 0000_0010
+        # 00 00 00 00 | 0000_0000 0000_0000 0000_0000 0000_0000
+        # 00 01 00 00 | 0000_0000 0000_0001 0000_0000 0000_0000
+        # 00 02 02 4F | 0000_0000 0000_0010 0000_0010 0100_1111
+        # 67 67 53 00 | 0110_0111 0110_0111 0101_0011 0000_0000
+        # 00 40 08 00 | 0000_0000 0100_0000 0000_1000 0000_0000
+        # 00 00 00 00 | 0000_0000 0000_0000 0000_0000 0000_0000
+        # 00 01 00 00 | 0000_0000 0000_0001 0000_0000 0000_0000
+        # 00 04 00 00 | 0000_0000 0000_0100 0000_0000 0000_0000
+        # 00 E1 6B FA | 0000_0000 1110_0001 0110_1011 1111_1010
+        # F1 13 BF D2 | 1111_0001 0001_0011 1011_1111 1101_0010
+        # D3 CC C7 FF | 1101_0011 1100_1100 1100_0111 1111_1111
+        # FF FF FF FF | 1111_1111 1111_1111 1111_1111 1111_1111
+        # 12 FF FF FF | 0001_0010 1111_1111 1111_1111 1111_1111
+        # FF AF FF FF | 1111_1111 1010_1111 1111_1111 1111_1111
+        # FF EC D1 12 | 1111_1111 1110_1100 1101_0001 0001_0010
+        # 91 97 2B B5 | 1001_0001 1001_0111 0010_1011 1011_0101
+        # 73 C3 65 90 | 0111_0011 1100_0011 0110_0101 1001_0000
+        # D6 88 7E B9 | 1101_0110 1000_1000 0111_1110 1011_1001
+        #
+        # (1) [001_0101]-> previous things
+        # (000) [0_0000|1]-> vorbis_mapping_count
+        # (0000_0000|000)
+        # (0) [1]-> flag [0]-> flag [0_0000|0000_0000||000]-> mapping type
+        # [0]-> magnitude[0] [000_0000|0]-> vorbis_mapping_coupling_steps
+        # (0000_000) [1]-> angle[0]
+        # (0000_000) [0|0000_000]-> reserved field
+        # (0000_000) [0|0000_000]-> floor number
+        # (0000_000) [0|0000_000]-> residue number
+
+        vorbis_mapping_configurations: List[SetupHeaderDecoder.MappingData] = (
+            setup_header_decoder.read_mappings(2, 2, 2))
+
+        self.assertEqual(2, len(vorbis_mapping_configurations))
+
+        self.assertEqual(
+            1, vorbis_mapping_configurations[0].vorbis_mapping_submaps)
+        self.assertEqual(
+            1, vorbis_mapping_configurations[0].vorbis_mapping_coupling_steps)
+        self.assertEqual(
+            [0], vorbis_mapping_configurations[0].vorbis_mapping_magnitude)
+        self.assertEqual(
+            [1], vorbis_mapping_configurations[0].vorbis_mapping_angle)
+        self.assertEqual(
+            [0], vorbis_mapping_configurations[0].vorbis_mapping_submap_floor)
+        self.assertEqual(
+            [0],
+            vorbis_mapping_configurations[0].vorbis_mapping_submap_residue)
+
+    # Optimize: NO TEST DATA
+    def test_mapping_decoding_first_flag_set(self):
+        pass
+
     # TODO: def test_modes_decoding(self):
 
 
