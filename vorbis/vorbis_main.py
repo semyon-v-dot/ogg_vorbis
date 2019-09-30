@@ -235,13 +235,9 @@ class PacketsProcessor(AbstractDecoder):
             self._setup_header_decoder.read_residues(
                 current_stream.vorbis_codebook_configurations))
 
-        # # Mappings decoding
-        # # TODO: Recheck
-        # current_stream.vorbis_mapping_configurations = (
-        #     self._mappings_decoder.read_mappings(
-        #         current_stream.audio_channels,
-        #         current_stream.vorbis_floor_types,
-        #         current_stream.vorbis_residue_types))
+        # Mappings decoding
+        current_stream.vorbis_mapping_configurations = (
+            self._setup_header_decoder.read_mappings(current_stream))
 
         # # Modes decoding
         # # TODO: Recheck
