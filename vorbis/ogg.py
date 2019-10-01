@@ -1,7 +1,9 @@
 from typing import List, BinaryIO, Tuple
 
+from vorbis import ProgramException
 
-class FileDataException(Exception):
+
+class FileDataException(ProgramException):
     """Root for all ogg_vorbis.py exceptions and errors"""
     pass
 

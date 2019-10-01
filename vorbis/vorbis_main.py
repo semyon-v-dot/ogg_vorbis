@@ -1,5 +1,6 @@
 from typing import List, Tuple
 
+from vorbis import ProgramException
 from .ogg import CorruptedFileDataError, FileDataException
 from .decoders import (
     DataReader,
@@ -314,18 +315,24 @@ class PacketsProcessor(AbstractDecoder):
         """Next read audio packet will be first in the file"""
         self._data_reader.restart_file_reading()
 
+        self._data_reader.read_packet()
+        self._data_reader.read_packet()
+        self._data_reader.read_packet()
+
     def get_audio_data(self):
         """Returns list of PCM audio data from current audio packet
 
-        Throws EOFError on file end"""
+        Raises EOFError on file end"""
         self._data_reader.read_packet()
+
+        if getattr(self, 'logical_stream', None) is None:
+            raise ProgramException("Process file headers first")
 
         packet_type: int = self._data_reader.read_bit()
 
-        while packet_type != 0:
-            self._data_reader.read_packet()
-
-            packet_type = self._data_reader.read_bit()
+        if packet_type != 0:
+            raise CorruptedFileDataError(
+                'Got wrong packet type in process of audio data reading')
 
         mode_number: int = self._data_reader.read_bits_for_int(
             ilog(self.logical_stream)
