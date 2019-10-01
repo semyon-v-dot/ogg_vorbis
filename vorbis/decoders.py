@@ -37,9 +37,7 @@ class AbstractDecoder:
 
 
 class SetupHeaderDecoder(AbstractDecoder):
-    """Class represents decoder of vorbis codebooks"""
     class CodebookData:
-        """Output data from codebook decoding"""
         codebook_codewords: List[str]
         VQ_lookup_table: List[List[float]]
         codebook_lookup_type: int
