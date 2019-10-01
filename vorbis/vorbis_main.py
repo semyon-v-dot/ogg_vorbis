@@ -1,6 +1,7 @@
 from typing import List, Tuple
 
 from vorbis import ProgramException
+from .helper_funcs import ilog
 from .ogg import CorruptedFileDataError, FileDataException
 from .decoders import (
     DataReader,
@@ -56,7 +57,7 @@ class PacketsProcessor(AbstractDecoder):
 
         vorbis_mapping_configurations: List['SetupHeaderDecoder.MappingData']
 
-        vorbis_mode_configurations: List[Tuple[bool, int]]
+        vorbis_mode_configurations: List['SetupHeaderDecoder.ModeData']
 
         def __init__(self, input_byte_position: int):
             self.byte_position = input_byte_position
@@ -335,10 +336,9 @@ class PacketsProcessor(AbstractDecoder):
                 'Got wrong packet type in process of audio data reading')
 
         mode_number: int = self._data_reader.read_bits_for_int(
-            ilog(self.logical_stream)
-        )
+            ilog(len(self.logical_stream.vorbis_mode_configurations) - 1))
 
-
+        if self.logical_stream.vorbis_mode_configurations[mode_number][0]
 
 
 

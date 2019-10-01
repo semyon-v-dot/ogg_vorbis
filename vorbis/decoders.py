@@ -72,6 +72,10 @@ class SetupHeaderDecoder(AbstractDecoder):
         vorbis_mapping_submap_floor: List[int]
         vorbis_mapping_submap_residue: List[int]
 
+    class ModeData:
+        vorbis_mode_blockflag: int
+        vorbis_mode_mapping: int
+
     # All class' vars below related to codebooks decoding ONLY
 
     last_read_codebook_position: Tuple[int, int]
@@ -725,18 +729,20 @@ class SetupHeaderDecoder(AbstractDecoder):
         return result_data
 
     def read_modes(
-            self, mappings_amount: int) -> List[Tuple[bool, int]]:
+            self, mappings_amount: int) -> List[ModeData]:
         """
 
         Input data from current logical stream
         """
-        modes_configs: List[Tuple[bool, int]] = []
+        modes_configs: List['SetupHeaderDecoder.ModeData'] = []
 
         for i in range(self._read_bits_for_int(6) + 1):
-            vorbis_mode_blockflag = bool(self._read_bit())
+            modes_configs.append(self.ModeData())
+
+            modes_configs[i].vorbis_mode_blockflag = self._read_bit()
             vorbis_mode_windowtype = self._read_bits_for_int(16)
             vorbis_mode_transformtype = self._read_bits_for_int(16)
-            vorbis_mode_mapping = self._read_bits_for_int(8)
+            modes_configs[i].vorbis_mode_mapping = self._read_bits_for_int(8)
 
             if vorbis_mode_windowtype != 0 or vorbis_mode_transformtype != 0:
                 raise CorruptedFileDataError(
@@ -746,12 +752,10 @@ class SetupHeaderDecoder(AbstractDecoder):
                     + ' '
                     + str(vorbis_mode_transformtype))
 
-            if vorbis_mode_mapping >= mappings_amount:
+            if modes_configs[i].vorbis_mode_mapping >= mappings_amount:
                 raise CorruptedFileDataError(
                     'Received incorrect [vorbis_mode_mapping]: '
-                    + str(vorbis_mode_mapping))
-
-            modes_configs.append((vorbis_mode_blockflag, vorbis_mode_mapping))
+                    + str(modes_configs[i].vorbis_mode_mapping))
 
         return modes_configs
 
