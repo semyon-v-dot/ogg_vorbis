@@ -68,9 +68,8 @@ class PacketsProcessorTests(TestCase):
 
         packets_processor._data_reader.read_packet()
         packets_processor._data_reader.byte_pointer = 1
-        packets_processor.logical_streams = []
-        packets_processor.logical_streams.append(
-            PacketsProcessor.LogicalStream(0))
+        packets_processor.logical_stream = (
+            PacketsProcessor.LogicalStreamData(0))
         packets_processor._process_identification_header()
 
         # test_1.ogg, ident header packet
@@ -127,7 +126,7 @@ class PacketsProcessorTests(TestCase):
         # Framing bit. Should be '1'
         # 01
 
-        logical_stream = packets_processor.logical_streams[0]
+        logical_stream = packets_processor.logical_stream
 
         assert logical_stream.audio_channels == 2
         assert logical_stream.audio_sample_rate == 44100
