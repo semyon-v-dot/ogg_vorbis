@@ -51,7 +51,7 @@ class PacketsProcessorTests(TestCase):
             occurred_err.exception.__class__,
             CorruptedFileDataError)
 
-        self.assertEqual(len(occurred_err.exception.args), 3)
+        self.assertEqual(2, len(occurred_err.exception.args))
         self.assertEqual(
             occurred_err.exception.args[0],
             'Identification header is lost')
