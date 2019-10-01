@@ -348,17 +348,17 @@ def run_console_launcher():
 
     if arguments.ident:
         print(_generate_ident_header(
-            packets_processor.logical_streams[0],
+            packets_processor.logical_stream,
             arguments.explain))
 
     if arguments.comment:
         print(_generate_comment_header(
-            packets_processor.logical_streams[0],
+            packets_processor.logical_stream,
             arguments.explain))
 
     if arguments.setup:
         print(_generate_setup_header(
-            packets_processor.logical_streams[0],
+            packets_processor.logical_stream,
             arguments.explain))
 
     packets_processor.close_file()

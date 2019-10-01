@@ -269,25 +269,25 @@ def run_graphics_launcher():
     root.columnconfigure(0, weight=1)
 
     raw_image_info = ('', b'')
-    if (hasattr(packets_processor.logical_streams[0],
+    if (hasattr(packets_processor.logical_stream,
                 'user_comment_list_strings')):
         coverart_index = -1
         for i, comment_str in enumerate(
-                packets_processor.logical_streams[0]
+                packets_processor.logical_stream
                 .user_comment_list_strings):
             if (comment_str.startswith('COVERARTMIME=')
-                    and len(packets_processor.logical_streams[0]
+                    and len(packets_processor.logical_stream
                             .user_comment_list_strings) > i + 1
-                    and (packets_processor.logical_streams[0]
+                    and (packets_processor.logical_stream
                          .user_comment_list_strings[i + 1]
                          .startswith('COVERART='))):
                 coverart_index = i
                 break
         if coverart_index != -1:
             raw_image_info = (
-                packets_processor.logical_streams[0]
+                packets_processor.logical_stream
                 .user_comment_list_strings[coverart_index],
-                packets_processor.logical_streams[0]
+                packets_processor.logical_stream
                 .user_comment_list_strings[coverart_index + 1]
                 .encode()[9:])
 

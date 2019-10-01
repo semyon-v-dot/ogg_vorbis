@@ -60,9 +60,10 @@ class PacketsProcessor(AbstractDecoder):
         def __init__(self, input_byte_position: int):
             self.byte_position = input_byte_position
 
+    _data_reader: DataReader
     _setup_header_decoder: SetupHeaderDecoder
 
-    logical_streams: List[LogicalStreamData]
+    logical_stream: LogicalStreamData
 
     def __init__(self, filename: str):
         self._data_reader: DataReader = DataReader(filename)
@@ -71,7 +72,6 @@ class PacketsProcessor(AbstractDecoder):
 
         self._basic_file_format_check(filename)
 
-        self.logical_streams = []
         self._setup_header_decoder = SetupHeaderDecoder(self._data_reader)
 
     def _basic_file_format_check(self, filename):
@@ -99,8 +99,6 @@ class PacketsProcessor(AbstractDecoder):
                 + self._data_reader.byte_pointer)
 
             occurred_exc.args += (
-                f'Error occurred in [{len(self.logical_streams) - 1}] '
-                'logical stream',
                 'Error occurred on '
                 f'[{current_byte_position}] byte position')
 
@@ -110,50 +108,54 @@ class PacketsProcessor(AbstractDecoder):
 
     def _process_headers(self):
         """Processes headers in whole file creating [logical_stream] objects"""
+        self._data_reader.read_packet()
+        packet_type = self._read_bytes(1)
+
+        self.logical_stream = self.LogicalStreamData(
+            self._data_reader.get_packet_global_position())
+
+        if packet_type != b'\x01':
+            raise CorruptedFileDataError(
+                'Identification header is lost')
         try:
-            self._data_reader.read_packet()
-            packet_type = self._read_bytes(1)
-            while True:
-                self.logical_streams.append(self.LogicalStreamData(
-                    self._data_reader.get_packet_global_position()))
-                if packet_type != b'\x01':
-                    raise CorruptedFileDataError(
-                        'Identification header is lost')
-                try:
-                    self._process_identification_header()
-                except EndOfPacketException:
-                    raise CorruptedFileDataError(
-                        'End of packet condition triggered while '
-                        'identification header decoding')
+            self._process_identification_header()
+        except EndOfPacketException:
+            raise CorruptedFileDataError(
+                'End of packet condition triggered while '
+                'identification header decoding')
 
+        self._data_reader.read_packet()
+        packet_type = self._read_bytes(1)
+        if packet_type != b'\x03':
+            raise CorruptedFileDataError('Comment header is lost')
+        self.logical_stream.comment_header_decoding_failed = (
+            False)
+        try:
+            self._process_comment_header()
+        except EndOfPacketException:
+            self.logical_stream.comment_header_decoding_failed = (
+                True)
+
+        self._data_reader.read_packet()
+        packet_type = self._read_bytes(1)
+        if packet_type != b'\x05':
+            raise CorruptedFileDataError('Setup header is lost')
+        try:
+            self._process_setup_header()
+        except EndOfPacketException:
+            raise CorruptedFileDataError(
+                'End of packet condition triggered while '
+                'setup header decoding')
+
+        try:
+            while packet_type != b'\x01':
                 self._data_reader.read_packet()
                 packet_type = self._read_bytes(1)
-                if packet_type != b'\x03':
-                    raise CorruptedFileDataError('Comment header is lost')
-                self.logical_streams[-1].comment_header_decoding_failed = (
-                    False)
-                try:
-                    self._process_comment_header()
-                except EndOfPacketException:
-                    self.logical_streams[-1].comment_header_decoding_failed = (
-                        True)
 
-                self._data_reader.read_packet()
-                packet_type = self._read_bytes(1)
-                if packet_type != b'\x05':
-                    raise CorruptedFileDataError('Setup header is lost')
-                try:
-                    self._process_setup_header()
-                except EndOfPacketException:
-                    raise CorruptedFileDataError(
-                        'End of packet condition triggered while '
-                        'setup header decoding')
-
-                while packet_type != b'\x01':
-                    self._data_reader.read_packet()
-                    packet_type = self._read_bytes(1)
+            raise NotImplementedError(
+                "Chained stream is not supported by this program")
         except EOFError:
-            self._data_reader.restart_file_reading()
+            pass
 
     def _process_identification_header(self):
         """Processes identification header
@@ -163,7 +165,7 @@ class PacketsProcessor(AbstractDecoder):
         self._check_header_sync_pattern()
 
         current_stream: 'PacketsProcessor.LogicalStreamData' = (
-            self.logical_streams[-1])
+            self.logical_stream)
 
         vorbis_version = self._read_bits_for_int(32)
 
@@ -214,7 +216,7 @@ class PacketsProcessor(AbstractDecoder):
         self._check_header_sync_pattern()
 
         current_stream: 'PacketsProcessor.LogicalStreamData' = (
-            self.logical_streams[-1])
+            self.logical_stream)
 
         vendor_length = self._read_bits_for_int(32)
         vendor_string = self._read_bytes(vendor_length)
@@ -250,7 +252,7 @@ class PacketsProcessor(AbstractDecoder):
         Stores info into current logical stream"""
         self._check_header_sync_pattern()
 
-        current_stream = self.logical_streams[-1]
+        current_stream = self.logical_stream
 
         # Codebooks decoding
 
@@ -307,6 +309,32 @@ class PacketsProcessor(AbstractDecoder):
         if pattern != b'vorbis':
             raise CorruptedFileDataError(
                 'Header sync pattern is absent')
+
+    def restart_audio_data_reading(self):
+        """Next read audio packet will be first in the file"""
+        self._data_reader.restart_file_reading()
+
+    def get_audio_data(self):
+        """Returns list of PCM audio data from current audio packet
+
+        Throws EOFError on file end"""
+        self._data_reader.read_packet()
+
+        packet_type: int = self._data_reader.read_bit()
+
+        while packet_type != 0:
+            self._data_reader.read_packet()
+
+            packet_type = self._data_reader.read_bit()
+
+        # mode_number: int = self._data_reader.read_bits_for_int(
+        #     ilog()
+        # )
+
+
+
+
+
 
     def close_file(self):
         """Method closes opened ogg-vorbis file"""
