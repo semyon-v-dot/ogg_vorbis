@@ -100,7 +100,7 @@ class PacketsProcessor(AbstractDecoder):
 
             occurred_exc.args += (
                 'Error occurred on '
-                f'[{current_byte_position}] byte position')
+                f'[{current_byte_position}] byte position',)
 
             self.close_file()
 
@@ -327,9 +327,9 @@ class PacketsProcessor(AbstractDecoder):
 
             packet_type = self._data_reader.read_bit()
 
-        # mode_number: int = self._data_reader.read_bits_for_int(
-        #     ilog()
-        # )
+        mode_number: int = self._data_reader.read_bits_for_int(
+            ilog(self.logical_stream)
+        )
 
 
 
