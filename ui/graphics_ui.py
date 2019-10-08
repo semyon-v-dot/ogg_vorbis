@@ -17,6 +17,7 @@ from PIL import Image as pil_Image
 from PIL.ImageTk import PhotoImage as pil_PhotoImage
 from contextlib import redirect_stdout as clib_redirect_stdout
 from argparse import ArgumentParser, Namespace
+from typing import Tuple
 
 from vorbis.vorbis_main import PacketsProcessor
 from .console_ui import get_current_version, init_packets_processor
@@ -211,7 +212,7 @@ class AudioToolbarFrame(tk_Frame):
         """Method contains actions when volume scale moved"""
         pygame_music.set_volume(float(new_position) * 0.01)
 
-    def time_scale_tick(self, root):
+    def time_scale_tick(self, root_: tk_Tk):
         """Method synchronizes time scale with music progression"""
         if pygame_music.get_pos() != -1:
             if (abs(pygame_music.get_pos() // 1000 - self._time_offset
@@ -225,7 +226,7 @@ class AudioToolbarFrame(tk_Frame):
             self._play_button['text'] = 'Play'
             self._time_scale_var.set(0)
 
-        root.after(100, self.time_scale_tick, root)
+        root_.after(100, self.time_scale_tick, root_)
 
 
 def run_graphics_launcher():
@@ -262,37 +263,49 @@ def run_graphics_launcher():
     pygame_mixer_init()
 
     root = tk_Tk()
-    root.title("Ogg Vorbis")
-    root.minsize(width=375, height=400)
-    root.rowconfigure(0, weight=1)
-    root.rowconfigure(1, weight=0)
-    root.columnconfigure(0, weight=1)
 
-    raw_image_info = ('', b'')
-    if (hasattr(packets_processor.logical_stream,
-                'user_comment_list_strings')):
-        coverart_index = -1
-        for i, comment_str in enumerate(
-                packets_processor.logical_stream
-                .user_comment_list_strings):
-            if (comment_str.startswith('COVERARTMIME=')
-                    and len(packets_processor.logical_stream
-                            .user_comment_list_strings) > i + 1
-                    and (packets_processor.logical_stream
-                         .user_comment_list_strings[i + 1]
-                         .startswith('COVERART='))):
-                coverart_index = i
-                break
-        if coverart_index != -1:
-            raw_image_info = (
-                packets_processor.logical_stream
-                .user_comment_list_strings[coverart_index],
-                packets_processor.logical_stream
-                .user_comment_list_strings[coverart_index + 1]
-                .encode()[9:])
+    def _configure_root():
+        global root
+
+        root.title("Ogg Vorbis")
+        root.minsize(width=375, height=400)
+        root.rowconfigure(0, weight=1)
+        root.rowconfigure(1, weight=0)
+        root.columnconfigure(0, weight=1)
+
+    _configure_root()
+
+    def _get_coverart() -> Tuple[str, bytes]:
+        global packets_processor
+
+        if (hasattr(packets_processor.logical_stream,
+                    'user_comment_list_strings')):
+            coverart_index: int = -1
+
+            for i, comment_str in enumerate(
+                    packets_processor.logical_stream.user_comment_list_strings):
+                if (comment_str.startswith('COVERARTMIME=')
+                        and len(packets_processor.logical_stream
+                                .user_comment_list_strings) > i + 1
+                        and (packets_processor.logical_stream
+                             .user_comment_list_strings[i + 1]
+                             .startswith('COVERART='))):
+                    coverart_index = i
+
+                    break
+
+            if coverart_index != -1:
+                return (
+                    packets_processor.logical_stream
+                    .user_comment_list_strings[coverart_index],
+                    packets_processor.logical_stream
+                    .user_comment_list_strings[coverart_index + 1]
+                    .encode()[9:])
+
+        return '', b''
 
     info_notebook = InfoNotebook(
-        coverart_info=raw_image_info,
+        coverart_info=_get_coverart(),
         filepath=arguments.filepath,
         master=root,
         padding=(0, 0))
