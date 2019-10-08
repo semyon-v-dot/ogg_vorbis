@@ -1,7 +1,5 @@
-from typing import List, Tuple
+from typing import List
 
-from vorbis import ProgramException
-from .helper_funcs import ilog
 from .ogg import CorruptedFileDataError, FileDataException
 from .decoders import (
     DataReader,
@@ -36,7 +34,9 @@ class PacketsProcessor(AbstractDecoder):
         bitrate_nominal: int
         bitrate_minimum: int
 
+        # Short window size
         blocksize_0: int
+        # Long window size
         blocksize_1: int
 
         # Comment header data
@@ -312,36 +312,144 @@ class PacketsProcessor(AbstractDecoder):
             raise CorruptedFileDataError(
                 'Header sync pattern is absent')
 
-    def restart_audio_data_reading(self):
-        """Next read audio packet will be first in the file"""
-        self._data_reader.restart_file_reading()
-
-        self._data_reader.read_packet()
-        self._data_reader.read_packet()
-        self._data_reader.read_packet()
-
-    def get_audio_data(self):
-        """Returns list of PCM audio data from current audio packet
-
-        Raises EOFError on file end"""
-        self._data_reader.read_packet()
-
-        if getattr(self, 'logical_stream', None) is None:
-            raise ProgramException("Process file headers first")
-
-        packet_type: int = self._data_reader.read_bit()
-
-        if packet_type != 0:
-            raise CorruptedFileDataError(
-                'Got wrong packet type in process of audio data reading')
-
-        mode_number: int = self._data_reader.read_bits_for_int(
-            ilog(len(self.logical_stream.vorbis_mode_configurations) - 1))
-
-        if self.logical_stream.vorbis_mode_configurations[mode_number][0]
-
-
-
+    # WouldBeBetter: get_audio_data realisation
+    # def get_audio_data(self):  # -> List[float]:
+    #     """Returns list of PCM audio data from current audio packet
+    #
+    #     Raises EOFError on file end
+    #     Raises EndOfPacketException. If so, current audio packet discards
+    #     from stream
+    #     """
+    #     self._data_reader.read_packet()
+    #
+    #     if getattr(self, 'logical_stream', None) is None:
+    #         raise ProgramException("Process file headers first")
+    #
+    #     packet_type: int = self._data_reader.read_bit()
+    #
+    #     if packet_type != 0:
+    #         raise CorruptedFileDataError(
+    #             'Got wrong packet type in process of audio data reading')
+    #
+    #     mode_number: int = self._data_reader.read_bits_for_int(
+    #         ilog(len(self.logical_stream.vorbis_mode_configurations) - 1))
+    #     n: int  # blocksize
+    #     vorbis_mode_blockflag: int = (
+    #         self.logical_stream
+    #             .vorbis_mode_configurations[mode_number]
+    #             .vorbis_mode_blockflag)
+    #
+    #     if vorbis_mode_blockflag == 0:
+    #         n = self.logical_stream.blocksize_0
+    #     else:
+    #         n = self.logical_stream.blocksize_1
+    #
+    #     previous_window_flag: Optional[int] = None
+    #     next_window_flag: Optional[int] = None
+    #
+    #     if vorbis_mode_blockflag == 1:
+    #         previous_window_flag = self._data_reader.read_bit()
+    #         next_window_flag = self._data_reader.read_bit()
+    #
+    #     # WouldBeBetter: Understand text below
+    #     # From docs:
+    #     # '''
+    #     # if [previous_window_flag] is not set, the left half of the
+    #     # window will be a hybrid window for lapping with a short block.
+    #     # See paragraph 1.3.2, “Window shape decode (long windows only)”
+    #     # for an illustration of overlapping dissimilar windows. Else, the
+    #     # left half window will have normal long shape.
+    #     #
+    #     # if [next_window_flag] is not set, the right half of the window
+    #     # will be a hybrid window for lapping with a short block. See
+    #     # paragraph 1.3.2, “Window shape decode (long windows only)” for
+    #     # an illustration of overlapping dissimilar windows. Else, the
+    #     # left right window will have normal long shape.
+    #     # '''
+    #
+    #     # These vars are integer because they are indexes in 'window' vector
+    #     window_center: int = n//2
+    #     left_window_start: int
+    #     left_window_end: int
+    #     left_n: int
+    #     right_window_start: int
+    #     right_window_end: int
+    #     right_n: int
+    #
+    #     if vorbis_mode_blockflag == 1 and previous_window_flag == 0:
+    #         left_window_start = n//4 - self.logical_stream.blocksize_0//4
+    #         left_window_end = n//4 + self.logical_stream.blocksize_0//4
+    #         left_n = self.logical_stream.blocksize_0//2
+    #     else:
+    #         left_window_start = 0
+    #         left_window_end = window_center
+    #         left_n = n//2
+    #
+    #     if vorbis_mode_blockflag == 1 and next_window_flag == 0:
+    #         right_window_start = n*3//4 - self.logical_stream.blocksize_0//4
+    #         right_window_end = n*3//4 + self.logical_stream.blocksize_0//4
+    #         right_n = self.logical_stream.blocksize_0 // 2
+    #     else:
+    #         right_window_start = window_center
+    #         right_window_end = n
+    #         right_n = n // 2
+    #
+    #     window: List[float] = []
+    #
+    #     for i in range(left_window_start):
+    #         window.append(0)
+    #
+    #     for i in range(left_window_start, left_window_end):
+    #         window.append(
+    #             sin(pi/2 * (
+    #                 sin((i - left_window_start + 0.5) / left_n * pi/2)**2)))
+    #
+    #     for i in range(left_window_end, right_window_start):
+    #         window.append(1)
+    #
+    #     for i in range(right_window_start, right_window_end):
+    #         window.append(
+    #             sin(pi/2 * (
+    #                 sin(
+    #                     (i - right_window_start + 0.5) /
+    #                     right_n * pi/2 + pi/2)**2)))
+    #
+    #     for i in range(right_window_start, n):
+    #         window.append(0)
+    #
+    #     try:
+    #         current_mode_data: SetupHeaderDecoder.ModeData = (
+    #             self.logical_stream
+    #                 .vorbis_mode_configurations[mode_number])
+    #         current_mapping_data: SetupHeaderDecoder.MappingData = (
+    #             self.logical_stream
+    #                 .vorbis_mapping_configurations[
+    #                     current_mode_data.vorbis_mode_mapping])
+    #
+    #         # Floor info for every audio channel
+    #         # floor_info: List = []
+    #         # 'True' if floor info decode returned 'unused'
+    #         # and 'False' otherwise
+    #         # no_residue: List[bool] = []
+    #
+    #         for i in range(self.logical_stream.audio_channels):
+    #             submap_number: int = (
+    #                 current_mapping_data.vorbis_mapping_mux[i])
+    #             floor_number: int = (
+    #                 current_mapping_data.vorbis_mapping_submap_floor[
+    #                     submap_number])
+    #
+    #             if floor_number == 0:
+    #                 raise CorruptedFileDataError(
+    #                     "Got floor type 0 when decoding audio data. This "
+    #                     "program DO NOT support any floor 0 decoding!")
+    #
+    #             if floor_number == 1:
+    #                 self._audio_data_decoder.floor_type_1_packet_decode()
+    #                 # WouldBeBetter: Stopped here
+    #
+    #     except EndOfPacketException:
+    #         pass
 
     def close_file(self):
         """Method closes opened ogg-vorbis file"""
