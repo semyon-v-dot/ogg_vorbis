@@ -1,9 +1,20 @@
-from os import (
-    pardir as os_pardir,
-    path as os_path)
+from os import environ
+from os.path import (
+    join as os_path_join,
+    split as os_path_split,
+    abspath as os_path_abspath)
 from sys import path as sys_path
 
+ui_folder_path, _ = os_path_split(os_path_abspath(__file__))
 
-sys_path.append(os_path.join(
-    os_path.dirname(os_path.abspath(__file__)),
-    os_pardir))
+ogg_vorbis_root, _ = os_path_split(ui_folder_path)
+
+sys_path.append(ogg_vorbis_root)
+
+environ["PATH"] += (
+    ";"
+    + os_path_join(
+        ogg_vorbis_root, "libs", "libav-11.3", "win64", "usr", "bin")
+    + ";")
+
+print()
