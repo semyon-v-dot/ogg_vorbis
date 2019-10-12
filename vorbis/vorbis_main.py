@@ -312,7 +312,7 @@ class PacketsProcessor(AbstractDecoder):
             raise CorruptedFileDataError(
                 'Header sync pattern is absent')
 
-    # WouldBeBetter: get_audio_data realisation
+    # WouldBeBetter: Complete get_audio_data
     # def get_audio_data(self):  # -> List[float]:
     #     """Returns list of PCM audio data from current audio packet
     #
