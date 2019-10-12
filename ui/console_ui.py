@@ -281,7 +281,7 @@ def run_console_launcher():
             version=get_current_version())
 
         parser.add_argument(
-            '--explain',
+            '-e', '--explain',
             help='show explanations in output about headers data',
             action='store_true')
 
