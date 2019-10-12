@@ -161,8 +161,7 @@ and synthesis.
     + " blockflag = " + str(bool(mode.vorbis_mode_blockflag)) + ";"
     + " mapping_number = " + str(mode.vorbis_mode_mapping) + ";"
     + chr(10)
-  for i, mode in enumerate(logical_stream.vorbis_mode_configurations)])}
-"""
+  for i, mode in enumerate(logical_stream.vorbis_mode_configurations)])}"""
 
 
 def get_current_version() -> str:
