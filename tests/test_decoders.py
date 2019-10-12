@@ -760,12 +760,13 @@ class SetupHeaderDecodingTests(TestCase):
         # (0000_001) [0|0000_0000|0000_000]
         # 0000_001 [0|0000_001]-> vorbis_mode_mapping
 
-        modes_configs: List[Tuple[bool, int]] = (
+        modes_configs: List[SetupHeaderDecoder.ModeData] = (
             setup_header_decoder.read_modes(2))
 
         self.assertEqual(
             [(False, 0), (True, 1)],
-            modes_configs)
+            [(bool(mode.vorbis_mode_blockflag), mode.vorbis_mode_mapping)
+             for mode in modes_configs])
 
 
 class HuffmanTests(TestCase):
