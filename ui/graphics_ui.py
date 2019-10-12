@@ -352,8 +352,8 @@ def run_graphics_launcher():
         for frame_shift in range(len(audio.raw_data) // bytes_in_frame):
             for channel in range(audio.channels):
                 sample_start: int = (
-                        frame_shift * bytes_in_frame
-                        + channel * audio.sample_width)
+                    frame_shift * bytes_in_frame
+                    + channel * audio.sample_width)
                 sample_end: int = sample_start + audio.sample_width
 
                 sample_bytes: bytes = audio.raw_data[sample_start:sample_end]

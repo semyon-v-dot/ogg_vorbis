@@ -142,7 +142,7 @@ spectral floor and spectral residue vectors.
 Mappings amount = {len(logical_stream.vorbis_mapping_configurations)}
 {'''
 MODES:
-    Each Vorbis frame is coded according to a master ’mode’. A bitstream may 
+    Each Vorbis frame is coded according to a master ’mode’. A bitstream may
 use one or many modes.
     The mode mechanism is used to encode a frame according to one of
 multiple possible methods with the intention of choosing a method best
@@ -157,7 +157,7 @@ and synthesis.
 ''' if explain_needed else ''}
 [vorbis_mode_configurations]:
 {''.join([
-    str(i) + ")" 
+    str(i) + ")"
     + " blockflag = " + str(bool(mode.vorbis_mode_blockflag)) + ";"
     + " mapping_number = " + str(mode.vorbis_mode_mapping) + ";"
     + chr(10)

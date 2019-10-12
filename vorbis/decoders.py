@@ -518,7 +518,7 @@ class SetupHeaderDecoder(AbstractDecoder):
     def read_residues(
             self,
             codebooks_configs: List['SetupHeaderDecoder.CodebookData']
-            ) -> Tuple[List[int], List[ResidueData]]:
+    ) -> Tuple[List[int], List[ResidueData]]:
         """Returns tuple of residues types AND related residues' data
 
         Input data from current logical stream"""
@@ -542,7 +542,7 @@ class SetupHeaderDecoder(AbstractDecoder):
     def _decode_residue_config(
             self,
             codebooks_configs: List['SetupHeaderDecoder.CodebookData']
-            ) -> ResidueData:
+    ) -> ResidueData:
         """Method decodes residue configuration"""
         result_data: 'SetupHeaderDecoder.ResidueData' = self.ResidueData()
 
@@ -568,8 +568,8 @@ class SetupHeaderDecoder(AbstractDecoder):
         residue_classbook_codebook: SetupHeaderDecoder.CodebookData = (
             codebooks_configs[result_data.residue_classbook])
 
-        if (coded_codebook.codebook_dimensions >
-                residue_classbook_codebook.codebook_entries):
+        if (coded_codebook.codebook_dimensions
+                > residue_classbook_codebook.codebook_entries):
             raise CorruptedFileDataError(
                 '[residue_classbook].dimensions exceeds '
                 '[residue_classbook].entries: '
@@ -600,8 +600,8 @@ class SetupHeaderDecoder(AbstractDecoder):
 
                     # Some checks next
 
-                    if (result_data.residue_books[i][j] >
-                            len(codebooks_configs)):
+                    if (result_data.residue_books[i][j]
+                            > len(codebooks_configs)):
                         raise CorruptedFileDataError(
                             'Last received into [residue_books] item is '
                             'incorrect, greater than codebook number '
