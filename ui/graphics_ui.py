@@ -366,6 +366,9 @@ def run_graphics_launcher():
     pcm_max: int = 2**(ogg_audio.sample_width * 8)
 
     def draw_plot(amplitude: List[int], axes_zero_coord: Tuple[int, int]):
+        if len(amplitude) == 0:
+            return
+
         x_drawing_offset: float = 1100 / len(amplitude)
         y_drawing_offset: float = 200 / pcm_max
         previous_dot_coord: Tuple[float, float] = (
