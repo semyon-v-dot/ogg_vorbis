@@ -18,9 +18,15 @@
 
 - Python 3.7.4+
 - Windows 10
-- Установленная аудио библиотека ffmpeg или libav. Достаточно добавить в PATH
-путь к exe-файлу билиотеки
+- Установленная аудио библиотека ffmpeg или libav. Добавить в PATH
+путь к exe-файлу билиотеки для Windows. На Linux:
+```
+# libav
+apt-get install libav-tools libavcodec-extra
 
+# ffmpeg
+apt-get install ffmpeg libavcodec-extra
+```
 #### СОСТАВ
 
 - **vorbis**
