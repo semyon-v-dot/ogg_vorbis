@@ -10,11 +10,3 @@ ui_folder_path, _ = os_path_split(os_path_abspath(__file__))
 ogg_vorbis_root, _ = os_path_split(ui_folder_path)
 
 sys_path.append(ogg_vorbis_root)
-
-environ["PATH"] += (
-    ";"
-    + os_path_join(
-        ogg_vorbis_root, "libs", "libav-11.3", "win64", "usr", "bin")
-    + ";")
-
-print()
