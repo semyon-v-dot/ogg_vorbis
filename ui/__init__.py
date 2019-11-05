@@ -1,6 +1,4 @@
-from os import environ
 from os.path import (
-    join as os_path_join,
     split as os_path_split,
     abspath as os_path_abspath)
 from sys import path as sys_path
