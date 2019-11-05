@@ -220,7 +220,7 @@ class AudioToolbarFrame(tk_Frame):
             pygame_music.set_pos(float(new_position))
 
     # WouldBeBetter: Fix time calculations below. They are so terrible. :(
-    #  Still work, tho.
+    #  Still works, tho.
 
     def time_scale_tick(self, root_: tk_Tk):
         """Method synchronizes time scale with music progression"""
