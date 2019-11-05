@@ -1,10 +1,13 @@
 from unittest import TestCase, main as unittest_main
-from os import pardir as os_pardir
+from os import pardir as os_pardir, remove as os_remove
 from os.path import (
     join as os_path_join,
     dirname as os_path_dirname,
-    abspath as os_path_abspath)
+    abspath as os_path_abspath,
+    exists as os_path_exists)
 from sys import path as sys_path
+from urllib.request import urlopen
+from shutil import copyfileobj as shutil_copyfileobj
 
 sys_path.append(os_path_join(
     os_path_dirname(os_path_abspath(__file__)),
@@ -13,27 +16,97 @@ sys_path.append(os_path_join(
 from vorbis.vorbis_main import PacketsProcessor, CorruptedFileDataError
 
 
-PATH_ORDINARY_TEST_1 = os_path_join(
+TEST_FILE_1_PATH = os_path_join(
     os_path_dirname(os_path_abspath(__file__)),
     'test_audiofiles',
     'test_1.ogg')
 
-PATH_TEST_WRONG_OGG_FILE = os_path_join(
+TEST_FILE_NOT_OGG_PATH = os_path_join(
     os_path_dirname(os_path_abspath(__file__)),
     'test_audiofiles',
     'test_wrong_ogg_file.ogg')
 
-PATH_TEST_WRONG_VORBIS_FILE = os_path_join(
+TEST_FILE_NOT_VORBIS_PATH = os_path_join(
     os_path_dirname(os_path_abspath(__file__)),
     'test_audiofiles',
     'test_wrong_vorbis_file.ogg')
+
+TEST_FILE_NOT_OGG_URL: str = (
+    r'https://raw.githubusercontent.com/susimus/ogg_vorbis/master/tests'
+    r'/test_audiofiles/test_wrong_ogg_file.ogg')
+
+TEST_FILE_NOT_VORBIS_URL: str = (
+    r'https://raw.githubusercontent.com/susimus/ogg_vorbis/master/tests'
+    r'/test_audiofiles/test_wrong_vorbis_file.ogg')
+
+TEST_FILE_1_URL: str = (
+    r'https://raw.githubusercontent.com/susimus/ogg_vorbis/master/'
+    r'tests/test_audiofiles/test_1.ogg')
+
+test_file_not_ogg_was_downloaded: bool = False
+test_file_not_vorbis_was_downloaded: bool = False
+test_file_1_was_downloaded: bool = False
+
+
+# noinspection PyPep8Naming
+def setUpModule():
+    global TEST_FILE_1_PATH, TEST_FILE_NOT_OGG_PATH, TEST_FILE_NOT_VORBIS_PATH
+
+    if not os_path_exists(TEST_FILE_1_PATH):
+        global test_file_1_was_downloaded, TEST_FILE_1_URL
+
+        test_file_1_was_downloaded = True
+
+        with urlopen(TEST_FILE_1_URL) as response, (
+                open(TEST_FILE_1_PATH, 'wb')) as out_file:
+            shutil_copyfileobj(response, out_file)
+
+    if not os_path_exists(TEST_FILE_NOT_OGG_PATH):
+        global test_file_not_ogg_was_downloaded, TEST_FILE_NOT_OGG_URL
+
+        test_file_not_ogg_was_downloaded = True
+
+        with urlopen(TEST_FILE_NOT_OGG_URL) as response, (
+                open(TEST_FILE_NOT_OGG_PATH, 'wb')) as out_file:
+            shutil_copyfileobj(response, out_file)
+
+    if not os_path_exists(TEST_FILE_NOT_VORBIS_PATH):
+        global test_file_not_vorbis_was_downloaded, TEST_FILE_NOT_VORBIS_URL
+
+        test_file_not_vorbis_was_downloaded = True
+
+        with urlopen(TEST_FILE_NOT_VORBIS_URL) as response, (
+                open(TEST_FILE_NOT_VORBIS_PATH, 'wb')) as out_file:
+            shutil_copyfileobj(response, out_file)
+
+
+# noinspection PyPep8Naming
+def tearDownModule():
+    global test_file_1_was_downloaded
+    global test_file_not_ogg_was_downloaded
+    global test_file_not_vorbis_was_downloaded
+
+    if test_file_1_was_downloaded:
+        global TEST_FILE_1_PATH
+
+        os_remove(TEST_FILE_1_PATH)
+
+    if test_file_not_ogg_was_downloaded:
+        global TEST_FILE_NOT_OGG_PATH
+
+        os_remove(TEST_FILE_NOT_OGG_PATH)
+
+    if test_file_not_vorbis_was_downloaded:
+        global TEST_FILE_NOT_VORBIS_PATH
+
+        os_remove(TEST_FILE_NOT_VORBIS_PATH)
 
 
 # noinspection PyMethodMayBeStatic
 class PacketsProcessorTests(TestCase):
     def test_ogg_not_vorbis_file(self):
         with self.assertRaises(CorruptedFileDataError) as occurred_err:
-            PacketsProcessor(PATH_TEST_WRONG_OGG_FILE)
+            PacketsProcessor(TEST_FILE_NOT_OGG_PATH)
 
         self.assertEqual(
             occurred_err.exception.__class__,
@@ -41,11 +114,11 @@ class PacketsProcessorTests(TestCase):
 
         self.assertEqual(
             occurred_err.exception.args[0],
-            "File format is not vorbis: " + PATH_TEST_WRONG_OGG_FILE)
+            "File format is not vorbis: " + TEST_FILE_NOT_OGG_PATH)
 
     def test_corrupted_vorbis_file(self):
         with self.assertRaises(CorruptedFileDataError) as occurred_err:
-            PacketsProcessor(PATH_TEST_WRONG_VORBIS_FILE).process_headers()
+            PacketsProcessor(TEST_FILE_NOT_VORBIS_PATH).process_headers()
 
         self.assertEqual(
             occurred_err.exception.__class__,
@@ -57,14 +130,14 @@ class PacketsProcessorTests(TestCase):
             'Identification header is lost')
 
     def test_process_headers(self):
-        packets_processor = PacketsProcessor(PATH_ORDINARY_TEST_1)
+        packets_processor = PacketsProcessor(TEST_FILE_1_PATH)
 
         packets_processor.process_headers()
 
         packets_processor.close_file()
 
     def test_ident_header_processing(self):
-        packets_processor = PacketsProcessor(PATH_ORDINARY_TEST_1)
+        packets_processor = PacketsProcessor(TEST_FILE_1_PATH)
 
         packets_processor._data_reader.read_packet()
         packets_processor._data_reader.byte_pointer = 1

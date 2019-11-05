@@ -1,11 +1,14 @@
 from unittest import TestCase, main as unittest_main
-from os import pardir as os_pardir
+from os import pardir as os_pardir, remove as os_remove
 from os.path import (
     join as os_path_join,
     dirname as os_path_dirname,
-    abspath as os_path_abspath)
-from typing import List, Tuple
+    abspath as os_path_abspath,
+    exists as os_path_exists)
+from typing import List
 from sys import path as sys_path
+from urllib.request import urlopen
+from shutil import copyfileobj as shutil_copyfileobj
 
 sys_path.append(os_path_join(
     os_path_dirname(os_path_abspath(__file__)),
@@ -18,10 +21,40 @@ from vorbis.decoders import (
 from vorbis.helper_funcs import float32_unpack
 
 
-PATH_TEST_1 = os_path_join(
+TEST_FILE_1_PATH = os_path_join(
     os_path_dirname(os_path_abspath(__file__)),
     'test_audiofiles',
     'test_1.ogg')
+
+TEST_FILE_1_URL: str = (
+            r'https://raw.githubusercontent.com/susimus/ogg_vorbis/master/'
+            r'tests/test_audiofiles/test_1.ogg')
+
+test_file_1_was_downloaded: bool = False
+
+
+# noinspection PyPep8Naming
+def setUpModule():
+    global TEST_FILE_1_PATH
+
+    if not os_path_exists(TEST_FILE_1_PATH):
+        global test_file_1_was_downloaded, TEST_FILE_1_URL
+
+        test_file_1_was_downloaded = True
+
+        with urlopen(TEST_FILE_1_URL) as response, (
+                open(TEST_FILE_1_PATH, 'wb')) as out_file:
+            shutil_copyfileobj(response, out_file)
+
+
+# noinspection PyPep8Naming
+def tearDownModule():
+    global test_file_1_was_downloaded
+
+    if test_file_1_was_downloaded:
+        global TEST_FILE_1_PATH
+
+        os_remove(TEST_FILE_1_PATH)
 
 
 def hex_str_to_bin_str(hex_str: str):
@@ -61,7 +94,7 @@ class DataReaderTests(TestCase):
             data_reader._read_bits(8 * 3 + 1)
 
     def test_read_bits_for_unsigned_int(self):
-        data_reader = DataReader(PATH_TEST_1)
+        data_reader = DataReader(TEST_FILE_1_PATH)
 
         data_reader._current_packet = b'\x32\x56'
         self.assertEqual(data_reader.read_bits_for_int(1), 0)
@@ -81,7 +114,7 @@ class DataReaderTests(TestCase):
 
 class SetupHeaderDecodingTests(TestCase):
     def test_codewords_reading_not_ordered_and_not_sparse(self):
-        data_reader = DataReader(PATH_TEST_1)
+        data_reader = DataReader(TEST_FILE_1_PATH)
         codebook_decoder = SetupHeaderDecoder(data_reader)
 
         data_reader.read_packet()
@@ -160,7 +193,7 @@ class SetupHeaderDecodingTests(TestCase):
              '1011001'])
 
     def test_codewords_reading_not_ordered_and_sparse(self):
-        data_reader = DataReader(PATH_TEST_1)
+        data_reader = DataReader(TEST_FILE_1_PATH)
         codebook_decoder = SetupHeaderDecoder(data_reader)
 
         data_reader.read_packet()
@@ -216,7 +249,7 @@ class SetupHeaderDecodingTests(TestCase):
             ['0', '10000', '10001', '', '10010', '10011', '', '10100'])
 
     def test_codewords_lengths_reading_ordered(self):
-        data_reader = DataReader(PATH_TEST_1)
+        data_reader = DataReader(TEST_FILE_1_PATH)
         codebook_decoder = SetupHeaderDecoder(data_reader)
 
         data_reader.read_packet()
@@ -269,7 +302,7 @@ class SetupHeaderDecodingTests(TestCase):
     # calculation takes place in 'lookup1_values' function that is tested in
     # 'test_helper_funcs.py'
     def test_lookup_values_reading_type_1(self):
-        data_reader = DataReader(PATH_TEST_1)
+        data_reader = DataReader(TEST_FILE_1_PATH)
         codebook_decoder = SetupHeaderDecoder(data_reader)
 
         data_reader.read_packet()
@@ -362,7 +395,7 @@ class SetupHeaderDecodingTests(TestCase):
         pass
 
     def test_floor_1_decoding(self):
-        data_reader = DataReader(PATH_TEST_1)
+        data_reader = DataReader(TEST_FILE_1_PATH)
         codebook_decoder = SetupHeaderDecoder(data_reader)
 
         data_reader.read_packet()
@@ -515,7 +548,7 @@ class SetupHeaderDecodingTests(TestCase):
         From docs:
         "Header decode for all three residue types is identical"
         """
-        data_reader = DataReader(PATH_TEST_1)
+        data_reader = DataReader(TEST_FILE_1_PATH)
         setup_header_decoder: SetupHeaderDecoder = (
             SetupHeaderDecoder(data_reader))
 
@@ -647,7 +680,7 @@ class SetupHeaderDecodingTests(TestCase):
             residue_configurations[0].residue_books[2])
 
     def test_mapping_decoding_second_flag_set(self):
-        data_reader = DataReader(PATH_TEST_1)
+        data_reader = DataReader(TEST_FILE_1_PATH)
         setup_header_decoder: SetupHeaderDecoder = (
             SetupHeaderDecoder(data_reader))
 
@@ -713,7 +746,7 @@ class SetupHeaderDecodingTests(TestCase):
         pass
 
     def test_modes_decoding(self):
-        data_reader = DataReader(PATH_TEST_1)
+        data_reader = DataReader(TEST_FILE_1_PATH)
         setup_header_decoder: SetupHeaderDecoder = (
             SetupHeaderDecoder(data_reader))
 
