@@ -22,8 +22,8 @@ TEST_FILE_1_PATH = os_path_join(
     'test_1.ogg')
 
 TEST_FILE_1_URL: str = (
-            r'https://raw.githubusercontent.com/susimus/ogg_vorbis/master/'
-            r'tests/test_audiofiles/test_1.ogg')
+    r'https://raw.githubusercontent.com/susimus/ogg_vorbis/master/'
+    r'tests/test_audiofiles/test_1.ogg')
 
 test_file_1_was_downloaded: bool = False
 
@@ -50,6 +50,7 @@ def tearDownModule():
         global TEST_FILE_1_PATH
 
         os_remove(TEST_FILE_1_PATH)
+
 
 class PacketReadingTest(TestCase):
     @staticmethod
